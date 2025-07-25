@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Офлайн - PDD Mini App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+            padding: 20px;
+        }
+
+        .offline-container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px 30px;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 100%;
+            animation: slideUp 0.6s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .offline-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: #f0f0f0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            color: #666;
+        }
+
+        .offline-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .offline-message {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+
+        .offline-features {
+            text-align: left;
+            margin-bottom: 30px;
+        }
+
+        .offline-features h3 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #333;
+            text-align: center;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 8px 0;
+        }
+
+        .feature-icon {
+            width: 20px;
+            height: 20px;
+            background: #4CAF50;
+            border-radius: 50%;
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .feature-text {
+            font-size: 14px;
+            color: #555;
+        }
+
+        .retry-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+        }
+
+        .retry-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .retry-button:active {
+            transform: translateY(0);
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-offline {
+            background: #f44336;
+        }
+
+        .status-online {
+            background: #4CAF50;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .cache-info {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .cache-info strong {
+            color: #333;
+        }
+
+        @media (max-width: 480px) {
+            .offline-container {
+                padding: 30px 20px;
+                margin: 10px;
+            }
+            
+            .offline-title {
+                font-size: 20px;
+            }
+            
+            .offline-message {
+                font-size: 14px;
+            }
+        }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            .offline-container {
+                background: #1e1e1e;
+                color: #e0e0e0;
+            }
+            
+            .offline-title {
+                color: #ffffff;
+            }
+            
+            .offline-message {
+                color: #b0b0b0;
+            }
+            
+            .feature-text {
+                color: #c0c0c0;
+            }
+            
+            .cache-info {
+                background: #2a2a2a;
+                color: #b0b0b0;
+            }
+            
+            .cache-info strong {
+                color: #ffffff;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-container">
+        <div class="offline-icon">
+            📡
+        </div>
+        
+        <h1 class="offline-title">Нет подключения</h1>
+        
+        <p class="offline-message">
+            Вы находитесь в автономном режиме, но можете продолжать использовать некоторые функции приложения.
+        </p>
+        
+        <div class="offline-features">
+            <h3>Доступно офлайн:</h3>
+            
+            <div class="feature-item">
+                <div class="feature-icon">✓</div>
+                <div class="feature-text">Просмотр кэшированных вопросов</div>
+            </div>
+            
+            <div class="feature-item">
+                <div class="feature-icon">✓</div>
+                <div class="feature-text">Локальная статистика</div>
+            </div>
+            
+            <div class="feature-item">
+                <div class="feature-icon">✓</div>
+                <div class="feature-text">Настройки приложения</div>
+            </div>
+            
+            <div class="feature-item">
+                <div class="feature-icon">✓</div>
+                <div class="feature-text">Очередь ответов (синхронизация при подключении)</div>
+            </div>
+        </div>
+        
+        <button class="retry-button" onclick="retryConnection()">
+            Повторить попытку
+        </button>
+        
+        <div class="status-indicator">
+            <div class="status-dot status-offline" id="statusDot"></div>
+            <span id="statusText">Проверка подключения...</span>
+        </div>
+        
+        <div class="cache-info">
+            <strong>Кэш приложения:</strong><br>
+            <span id="cacheInfo">Загрузка информации о кэше...</span>
+        </div>
+    </div>
+
+    <script>
+        let isOnline = navigator.onLine;
+        let retryAttempts = 0;
+        const maxRetryAttempts = 5;
+
+        // Update connection status
+        function updateConnectionStatus(online) {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            
+            if (online) {
+                statusDot.className = 'status-dot status-online';
+                statusText.textContent = 'Подключение восстановлено';
+                
+                // Redirect to main app after a short delay
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 1500);
+            } else {
+                statusDot.className = 'status-dot status-offline';
+                statusText.textContent = 'Нет подключения к интернету';
+            }
+        }
+
+        // Retry connection
+        async function retryConnection() {
+            if (retryAttempts >= maxRetryAttempts) {
+                document.getElementById('statusText').textContent = 
+                    'Максимальное количество попыток превышено';
+                return;
+            }
+
+            retryAttempts++;
+            document.getElementById('statusText').textContent = 
+                `Попытка подключения ${retryAttempts}/${maxRetryAttempts}...`;
+
+            try {
+                // Try to fetch a lightweight resource
+                const response = await fetch('/api/health', {
+                    method: 'HEAD',
+                    cache: 'no-cache'
+                });
+
+                if (response.ok) {
+                    updateConnectionStatus(true);
+                } else {
+                    throw new Error('Server not responding');
+                }
+            } catch (error) {
+                console.log('Connection retry failed:', error);
+                updateConnectionStatus(false);
+                
+                if (retryAttempts < maxRetryAttempts) {
+                    // Exponential backoff
+                    const delay = Math.min(1000 * Math.pow(2, retryAttempts), 10000);
+                    setTimeout(retryConnection, delay);
+                }
+            }
+        }
+
+        // Get cache information
+        async function getCacheInfo() {
+            try {
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    let totalSize = 0;
+                    let totalEntries = 0;
+
+                    for (const cacheName of cacheNames) {
+                        const cache = await caches.open(cacheName);
+                        const keys = await cache.keys();
+                        totalEntries += keys.length;
+                    }
+
+                    document.getElementById('cacheInfo').innerHTML = 
+                        `${cacheNames.length} кэшей, ${totalEntries} записей<br>` +
+                        `Последнее обновление: ${new Date().toLocaleString('ru-RU')}`;
+                } else {
+                    document.getElementById('cacheInfo').textContent = 
+                        'Кэширование не поддерживается';
+                }
+            } catch (error) {
+                document.getElementById('cacheInfo').textContent = 
+                    'Ошибка получения информации о кэше';
+            }
+        }
+
+        // Listen for online/offline events
+        window.addEventListener('online', () => {
+            isOnline = true;
+            updateConnectionStatus(true);
+        });
+
+        window.addEventListener('offline', () => {
+            isOnline = false;
+            updateConnectionStatus(false);
+        });
+
+        // Listen for service worker messages
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data.type === 'CACHE_STATUS') {
+                    const { status } = event.data;
+                    const totalCaches = Object.keys(status).length;
+                    const totalEntries = Object.values(status).reduce((sum, count) => sum + count, 0);
+                    
+                    document.getElementById('cacheInfo').innerHTML = 
+                        `${totalCaches} кэшей, ${totalEntries} записей<br>` +
+                        `Последнее обновление: ${new Date().toLocaleString('ru-RU')}`;
+                }
+            });
+
+            // Request cache status from service worker
+            navigator.serviceWorker.ready.then((registration) => {
+                if (registration.active) {
+                    registration.active.postMessage({ type: 'GET_CACHE_STATUS' });
+                }
+            });
+        }
+
+        // Initialize
+        updateConnectionStatus(isOnline);
+        getCacheInfo();
+
+        // Auto-retry connection every 30 seconds
+        setInterval(() => {
+            if (!isOnline && retryAttempts < maxRetryAttempts) {
+                retryConnection();
+            }
+        }, 30000);
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'r' || event.key === 'R') {
+                event.preventDefault();
+                retryConnection();
+            }
+            if (event.key === 'Escape') {
+                window.history.back();
+            }
+        });
+    </script>
+</body>
+</html>

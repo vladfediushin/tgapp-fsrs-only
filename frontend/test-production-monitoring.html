@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production Monitoring Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .metrics {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .environment-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .env-production {
+            background: #dc3545;
+            color: white;
+        }
+        .env-staging {
+            background: #ffc107;
+            color: black;
+        }
+        .env-development {
+            background: #28a745;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Production Monitoring Test</h1>
+        <p>This page tests the production monitoring system in a simulated production environment.</p>
+        
+        <div id="environment-info">
+            <div id="env-badge" class="environment-badge">Loading...</div>
+            <div id="config-info" class="status info">Loading configuration...</div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Service Status</h3>
+            <div id="service-status" class="status info">Checking services...</div>
+            <button onclick="checkServices()">Refresh Status</button>
+        </div>
+
+        <div class="test-section">
+            <h3>🚨 Error Tracking Test</h3>
+            <p>Test error reporting and tracking functionality.</p>
+            <button onclick="testErrorTracking()">Test Error Capture</button>
+            <button onclick="testUserReportedError()">Test User Reported Error</button>
+            <div id="error-test-result" class="status info" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📈 Analytics Test</h3>
+            <p>Test analytics event tracking and user actions.</p>
+            <button onclick="testAnalytics()">Test Event Tracking</button>
+            <button onclick="testUserAction()">Test User Action</button>
+            <button onclick="testFSRSEvent()">Test FSRS Event</button>
+            <div id="analytics-test-result" class="status info" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>⚡ Performance Test</h3>
+            <p>Test performance monitoring and metrics collection.</p>
+            <button onclick="testPerformanceMonitoring()">Test Performance Metrics</button>
+            <button onclick="testSlowOperation()">Simulate Slow Operation</button>
+            <button onclick="testMemoryUsage()">Test Memory Monitoring</button>
+            <div id="performance-test-result" class="status info" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📋 Current Metrics</h3>
+            <button onclick="showMetrics()">Show Current Metrics</button>
+            <button onclick="clearMetrics()">Clear Metrics</button>
+            <div id="metrics-display" class="metrics" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎛️ Dashboard Test</h3>
+            <p>Test the production monitoring dashboard.</p>
+            <button onclick="showDashboard()">Show Dashboard</button>
+            <div id="dashboard-container"></div>
+        </div>
+    </div>
+
+    <!-- Simulated production monitoring modules -->
+    <script>
+        // Simulate production monitoring configuration
+        const mockProductionConfig = {
+            environment: 'production',
+            serviceName: 'tgapp-fsrs-frontend',
+            version: '1.0.0',
+            errorTracking: {
+                enabled: true,
+                sampleRate: 0.1,
+                maxReports: 100,
+                enableConsoleLogging: false
+            },
+            performance: {
+                enabled: true,
+                maxMetrics: 500,
+                sampleRate: 0.05,
+                thresholds: {
+                    slowApiCall: 5000,
+                    slowRender: 200,
+                    highMemoryUsage: 100 * 1024 * 1024
+                }
+            },
+            analytics: {
+                enabled: true,
+                batchSize: 50,
+                anonymizeData: true
+            },
+            features: {
+                performanceDashboard: false,
+                verboseLogging: false,
+                developmentTesting: false
+            }
+        };
+
+        // Mock monitoring services
+        const mockServices = {
+            errorTracker: {
+                captureError: (error, context) => {
+                    console.log('📊 Error captured:', error.message, context);
+                    return `err_${Date.now()}`;
+                },
+                addBreadcrumb: (breadcrumb) => {
+                    console.log('🍞 Breadcrumb added:', breadcrumb);
+                }
+            },
+            analytics: {
+                trackEvent: (event) => {
+                    console.log('📈 Event tracked:', event);
+                },
+                trackUserAction: (action, component, properties) => {
+                    console.log('👤 User action tracked:', action, component, properties);
+                },
+                trackFSRSEvent: (eventType, data) => {
+                    console.log('🧠 FSRS event tracked:', eventType, data);
+                }
+            },
+            performanceMonitor: {
+                recordMetric: (metric) => {
+                    console.log('⚡ Metric recorded:', metric);
+                },
+                measureAsync: async (name, fn) => {
+                    const start = performance.now();
+                    const result = await fn();
+                    const duration = performance.now() - start;
+                    console.log(`⏱️ ${name} took ${duration.toFixed(2)}ms`);
+                    return result;
+                },
+                getCurrentSummary: () => ({
+                    totalMetrics: Math.floor(Math.random() * 100),
+                    averageResponseTime: Math.random() * 1000,
+                    errorRate: Math.random() * 0.05,
+                    slowOperations: Math.floor(Math.random() * 5)
+                })
+            }
+        };
+
+        let metrics = [];
+
+        // Initialize page
+        function initializePage() {
+            updateEnvironmentInfo();
+            checkServices();
+        }
+
+        function updateEnvironmentInfo() {
+            const envBadge = document.getElementById('env-badge');
+            const configInfo = document.getElementById('config-info');
+            
+            envBadge.textContent = mockProductionConfig.environment.toUpperCase();
+            envBadge.className = `environment-badge env-${mockProductionConfig.environment}`;
+            
+            configInfo.innerHTML = `
+                <strong>Configuration:</strong><br>
+                Service: ${mockProductionConfig.serviceName}<br>
+                Version: ${mockProductionConfig.version}<br>
+                Error Tracking: ${mockProductionConfig.errorTracking.enabled ? '✅' : '❌'}<br>
+                Performance Monitoring: ${mockProductionConfig.performance.enabled ? '✅' : '❌'}<br>
+                Analytics: ${mockProductionConfig.analytics.enabled ? '✅' : '❌'}<br>
+                Dashboard: ${mockProductionConfig.features.performanceDashboard ? '✅' : '❌'}<br>
+                Verbose Logging: ${mockProductionConfig.features.verboseLogging ? '✅' : '❌'}
+            `;
+        }
+
+        function checkServices() {
+            const statusDiv = document.getElementById('service-status');
+            
+            // Simulate service check
+            setTimeout(() => {
+                const services = {
+                    'Error Tracking': Math.random() > 0.1,
+                    'Analytics': Math.random() > 0.05,
+                    'Performance Monitoring': Math.random() > 0.05
+                };
+                
+                let html = '<strong>Service Status:</strong><br>';
+                for (const [service, status] of Object.entries(services)) {
+                    html += `${service}: ${status ? '✅ Active' : '❌ Inactive'}<br>`;
+                }
+                
+                statusDiv.innerHTML = html;
+                statusDiv.className = `status ${Object.values(services).every(s => s) ? 'success' : 'error'}`;
+            }, 500);
+        }
+
+        function testErrorTracking() {
+            const resultDiv = document.getElementById('error-test-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'status info';
+            resultDiv.textContent = 'Testing error tracking...';
+            
+            try {
+                // Simulate error
+                const testError = new Error('Test error for monitoring system');
+                const errorId = mockServices.errorTracker.captureError(testError, {
+                    component: 'MonitoringTest',
+                    action: 'testErrorTracking',
+                    testMode: true
+                });
+                
+                mockServices.errorTracker.addBreadcrumb({
+                    message: 'Error tracking test initiated',
+                    category: 'test',
+                    level: 'info'
+                });
+                
+                setTimeout(() => {
+                    resultDiv.className = 'status success';
+                    resultDiv.innerHTML = `✅ Error tracking test successful!<br>Error ID: ${errorId}`;
+                }, 1000);
+                
+            } catch (error) {
+                resultDiv.className = 'status error';
+                resultDiv.textContent = `❌ Error tracking test failed: ${error.message}`;
+            }
+        }
+
+        function testUserReportedError() {
+            const resultDiv = document.getElementById('error-test-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'status info';
+            resultDiv.textContent = 'Testing user reported error...';
+            
+            const userError = new Error('User reported issue with question loading');
+            const errorId = mockServices.errorTracker.captureError(userError, {
+                component: 'QuestionLoader',
+                action: 'loadQuestion',
+                userReported: true,
+                userId: 'test_user_123'
+            });
+            
+            setTimeout(() => {
+                resultDiv.className = 'status success';
+                resultDiv.innerHTML = `✅ User error report successful!<br>Error ID: ${errorId}`;
+            }, 800);
+        }
+
+        function testAnalytics() {
+            const resultDiv = document.getElementById('analytics-test-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'status info';
+            resultDiv.textContent = 'Testing analytics...';
+            
+            mockServices.analytics.trackEvent({
+                name: 'monitoring_test',
+                category: 'testing',
+                properties: {
+                    testType: 'analytics',
+                    timestamp: Date.now(),
+                    environment: mockProductionConfig.environment
+                }
+            });
+            
+            setTimeout(() => {
+                resultDiv.className = 'status success';
+                resultDiv.textContent = '✅ Analytics test successful! Event tracked.';
+            }, 600);
+        }
+
+        function testUserAction() {
+            const resultDiv = document.getElementById('analytics-test-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'status info';
+            resultDiv.textContent = 'Testing user action tracking...';
+            
+            mockServices.analytics.trackUserAction('button_click', 'MonitoringTest', {
+                buttonType: 'test',
+                testId: 'user_action_test'
+            });
+            
+            setTimeout(() => {
+                resultDiv.className = 'status success';
+                resultDiv.textContent = '✅ User action tracking successful!';
+            }, 600);
+        }
+
+        function testFSRSEvent() {
+            const resultDiv = document.getElementById('analytics-test-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'status info';
+            resultDiv.textContent = 'Testing FSRS event tracking...';
+            
+            mockServices.analytics.trackFSRSEvent('question_answered', {
+                questionId: 'test_question_123',
+                difficulty: 3,
+                responseTime: 2500,
+                correct: true
+            });
+            
+            setTimeout(() => {
+                resultDiv.className = 'status success';
+                resultDiv.textContent = '✅ FSRS event tracking successful!';
+            }, 600);
+        }
+
+        function testPerformanceMonitoring() {
+            const resultDiv = document.getElementById('performance-test-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'status info';
+            resultDiv.textContent = 'Testing performance monitoring...';
+            
+            // Test metric recording
+            mockServices.performanceMonitor.recordMetric({
+                name: 'test_operation',
+                value: 150,
+                unit: 'ms',
+                category: 'test',
+                timestamp: Date.now()
+            });
+            
+            metrics.push({
+                name: 'test_operation',
+                value: 150,
+                timestamp: new Date().toISOString()
+            });
+            
+            setTimeout(() => {
+                resultDiv.className = 'status success';
+                resultDiv.textContent = '✅ Performance monitoring test successful!';
+            }, 700);
+        }
+
+        async function testSlowOperation() {
+            const resultDiv = document.getElementById('performance-test-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'status info';
+            resultDiv.textContent = 'Testing slow operation detection...';
+            
+            await mockServices.performanceMonitor.measureAsync('slow_test_operation', async () => {
+                // Simulate slow operation
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                return 'slow operation completed';
+            });
+            
+            metrics.push({
+                name: 'slow_operation',
+                value: 2000,
+                timestamp: new Date().toISOString(),
+                threshold_exceeded: true
+            });
+            
+            resultDiv.className = 'status success';
+            resultDiv.textContent = '✅ Slow operation test completed! Check console for timing.';
+        }
+
+        function testMemoryUsage() {
+            const resultDiv = document.getElementById('performance-test-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'status info';
+            resultDiv.textContent = 'Testing memory monitoring...';
+            
+            if ('memory' in performance) {
+                const memory = performance.memory;
+                mockServices.performanceMonitor.recordMetric({
+                    name: 'memory_test',
+                    value: memory.usedJSHeapSize,
+                    unit: 'bytes',
+                    category: 'memory'
+                });
+                
+                metrics.push({
+                    name: 'memory_usage',
+                    value: memory.usedJSHeapSize,
+                    timestamp: new Date().toISOString()
+                });
+                
+                setTimeout(() => {
+                    resultDiv.className = 'status success';
+                    resultDiv.innerHTML = `✅ Memory monitoring test successful!<br>Used: ${(memory.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`;
+                }, 500);
+            } else {
+                resultDiv.className = 'status error';
+                resultDiv.textContent = '❌ Memory API not available in this browser';
+            }
+        }
+
+        function showMetrics() {
+            const metricsDiv = document.getElementById('metrics-display');
+            const summary = mockServices.performanceMonitor.getCurrentSummary();
+            
+            metricsDiv.innerHTML = `
+<strong>Performance Summary:</strong>
+Total Metrics: ${summary.totalMetrics}
+Average Response Time: ${summary.averageResponseTime.toFixed(2)}ms
+Error Rate: ${(summary.errorRate * 100).toFixed(2)}%
+Slow Operations: ${summary.slowOperations}
+
+<strong>Recent Metrics:</strong>
+${metrics.slice(-5).map(m => `${m.name}: ${m.value} (${m.timestamp})`).join('\n')}
+
+<strong>Configuration:</strong>
+Environment: ${mockProductionConfig.environment}
+Sample Rate: ${mockProductionConfig.performance.sampleRate * 100}%
+Max Metrics: ${mockProductionConfig.performance.maxMetrics}
+Thresholds: ${JSON.stringify(mockProductionConfig.performance.thresholds, null, 2)}
+            `;
+            metricsDiv.style.display = 'block';
+        }
+
+        function clearMetrics() {
+            metrics = [];
+            const metricsDiv = document.getElementById('metrics-display');
+            metricsDiv.style.display = 'none';
+            
+            const resultDivs = document.querySelectorAll('.test-section .status');
+            resultDivs.forEach(div => {
+                if (div.id.includes('result')) {
+                    div.style.display = 'none';
+                }
+            });
+            
+            console.clear();
+            alert('✅ Metrics cleared!');
+        }
+
+        function showDashboard() {
+            if (!mockProductionConfig.features.performanceDashboard) {
+                alert('🔒 Dashboard is disabled in production environment for security reasons.');
+                return;
+            }
+            
+            const container = document.getElementById('dashboard-container');
+            container.innerHTML = `
+                <div style="border: 2px dashed #ccc; padding: 20px; margin: 10px 0; text-align: center;">
+                    <h4>📊 Production Monitoring Dashboard</h4>
+                    <p>Dashboard would be rendered here in staging/development environments.</p>
+                    <p><em>Disabled in production for security and performance.</em></p>
+                </div>
+            `;
+        }
+
+        // Initialize when page loads
+        window.addEventListener('load', initializePage);
+
+        // Simulate some background monitoring activity
+        setInterval(() => {
+            if (Math.random() < 0.1) { // 10% chance
+                mockServices.performanceMonitor.recordMetric({
+                    name: 'background_task',
+                    value: Math.random() * 100,
+                    unit: 'ms',
+                    category: 'background'
+                });
+            }
+        }, 5000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Consolidation Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .metrics-display {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .violation-item {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Performance Consolidation Test Suite</h1>
+    <p>Testing the consolidated performance monitoring system that merges 4 files into 1.</p>
+
+    <div class="test-section">
+        <h2>1. Basic Import Test</h2>
+        <button onclick="testBasicImport()">Test Basic Import</button>
+        <div id="import-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Performance Monitor Test</h2>
+        <button onclick="testPerformanceMonitor()">Test Performance Monitor</button>
+        <div id="monitor-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Performance Budgets Test</h2>
+        <button onclick="testPerformanceBudgets()">Test Performance Budgets</button>
+        <div id="budget-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Statistics Event Emitter Test</h2>
+        <button onclick="testStatisticsEvents()">Test Statistics Events</button>
+        <div id="events-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Optimization Utilities Test</h2>
+        <button onclick="testOptimizationUtils()">Test Optimization Utils</button>
+        <div id="optimization-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>6. Compatibility Layer Test</h2>
+        <button onclick="testCompatibilityLayer()">Test Compatibility Layer</button>
+        <div id="compatibility-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>7. Live Performance Metrics</h2>
+        <button onclick="startLiveMetrics()">Start Live Monitoring</button>
+        <button onclick="stopLiveMetrics()">Stop Monitoring</button>
+        <div id="live-metrics"></div>
+    </div>
+
+    <script type="module">
+        let liveMetricsInterval;
+        let performanceMonitor;
+        let budgetMonitor;
+
+        // Mock the unified store for testing
+        window.mockUnifiedStore = {
+            settings: { useFSRS: false, manualDailyGoal: 20 },
+            userStats: { answered: 100, correct: 80 },
+            dailyProgress: { questions_mastered_today: 15 }
+        };
+
+        window.mockUnifiedActions = {
+            loadUserStats: async (userId) => ({ answered: 100, correct: 80 }),
+            loadDailyProgress: async (userId) => ({ questions_mastered_today: 15 }),
+            loadFSRSStats: async (userId) => null,
+            loadStreakDays: async (userId) => 5,
+            invalidateCache: (key) => console.log(`Cache invalidated: ${key}`)
+        };
+
+        // Test functions
+        window.testBasicImport = async function() {
+            const results = document.getElementById('import-results');
+            results.innerHTML = '<div class="info">Testing basic import...</div>';
+
+            try {
+                // Test if we can import the consolidated module
+                const module = await import('./src/utils/core/performance.ts');
+                
+                const tests = [
+                    { name: 'getConsolidatedPerformanceMonitor', exists: typeof module.getConsolidatedPerformanceMonitor === 'function' },
+                    { name: 'usePerformanceMetrics', exists: typeof module.usePerformanceMetrics === 'function' },
+                    { name: 'usePerformanceBudgets', exists: typeof module.usePerformanceBudgets === 'function' },
+                    { name: 'statisticsEventEmitter', exists: typeof module.statisticsEventEmitter === 'object' },
+                    { name: 'optimizeDataAggregation', exists: typeof module.optimizeDataAggregation === 'function' },
+                    { name: 'DEFAULT_BUDGETS', exists: typeof module.DEFAULT_BUDGETS === 'object' }
+                ];
+
+                let html = '';
+                let allPassed = true;
+
+                tests.forEach(test => {
+                    const status = test.exists ? 'success' : 'error';
+                    if (!test.exists) allPassed = false;
+                    html += `<div class="${status}">✓ ${test.name}: ${test.exists ? 'Available' : 'Missing'}</div>`;
+                });
+
+                html += `<div class="${allPassed ? 'success' : 'error'}">Overall Import Test: ${allPassed ? 'PASSED' : 'FAILED'}</div>`;
+                results.innerHTML = html;
+
+            } catch (error) {
+                results.innerHTML = `<div class="error">Import failed: ${error.message}</div>`;
+            }
+        };
+
+        window.testPerformanceMonitor = async function() {
+            const results = document.getElementById('monitor-results');
+            results.innerHTML = '<div class="info">Testing performance monitor...</div>';
+
+            try {
+                const module = await import('./src/utils/core/performance.ts');
+                performanceMonitor = module.getConsolidatedPerformanceMonitor();
+
+                const tests = [
+                    { name: 'Monitor Creation', test: () => performanceMonitor !== null },
+                    { name: 'Get Metrics', test: () => {
+                        const metrics = performanceMonitor.getMetrics();
+                        return typeof metrics === 'object' && metrics !== null;
+                    }},
+                    { name: 'Get Insights', test: () => {
+                        const insights = performanceMonitor.getInsights();
+                        return insights && typeof insights.score === 'number';
+                    }},
+                    { name: 'Track Route Change', test: () => {
+                        performanceMonitor.trackRouteChange('/test');
+                        return true;
+                    }},
+                    { name: 'Track Interaction', test: () => {
+                        performanceMonitor.trackInteraction(50);
+                        return true;
+                    }}
+                ];
+
+                let html = '';
+                let allPassed = true;
+
+                tests.forEach(testCase => {
+                    try {
+                        const passed = testCase.test();
+                        const status = passed ? 'success' : 'error';
+                        if (!passed) allPassed = false;
+                        html += `<div class="${status}">✓ ${testCase.name}: ${passed ? 'PASSED' : 'FAILED'}</div>`;
+                    } catch (error) {
+                        allPassed = false;
+                        html += `<div class="error">✗ ${testCase.name}: ERROR - ${error.message}</div>`;
+                    }
+                });
+
+                // Display current metrics
+                const metrics = performanceMonitor.getMetrics();
+                html += `<div class="metrics-display">Current Metrics: ${JSON.stringify(metrics, null, 2)}</div>`;
+
+                html += `<div class="${allPassed ? 'success' : 'error'}">Performance Monitor Test: ${allPassed ? 'PASSED' : 'FAILED'}</div>`;
+                results.innerHTML = html;
+
+            } catch (error) {
+                results.innerHTML = `<div class="error">Performance Monitor test failed: ${error.message}</div>`;
+            }
+        };
+
+        window.testPerformanceBudgets = async function() {
+            const results = document.getElementById('budget-results');
+            results.innerHTML = '<div class="info">Testing performance budgets...</div>';
+
+            try {
+                const module = await import('./src/utils/core/performance.ts');
+                budgetMonitor = module.getConsolidatedPerformanceMonitor();
+
+                const tests = [
+                    { name: 'Get Budgets', test: () => {
+                        const budgets = budgetMonitor.getBudgets();
+                        return budgets && typeof budgets.maxBundleSize === 'number';
+                    }},
+                    { name: 'Update Budgets', test: () => {
+                        budgetMonitor.updateBudgets({ maxBundleSize: 200 * 1024 });
+                        const budgets = budgetMonitor.getBudgets();
+                        return budgets.maxBundleSize === 200 * 1024;
+                    }},
+                    { name: 'Get Violations', test: () => {
+                        const violations = budgetMonitor.getViolations();
+                        return Array.isArray(violations);
+                    }},
+                    { name: 'Clear Violations', test: () => {
+                        budgetMonitor.clearViolations();
+                        const violations = budgetMonitor.getViolations();
+                        return violations.length === 0;
+                    }}
+                ];
+
+                let html = '';
+                let allPassed = true;
+
+                tests.forEach(testCase => {
+                    try {
+                        const passed = testCase.test();
+                        const status = passed ? 'success' : 'error';
+                        if (!passed) allPassed = false;
+                        html += `<div class="${status}">✓ ${testCase.name}: ${passed ? 'PASSED' : 'FAILED'}</div>`;
+                    } catch (error) {
+                        allPassed = false;
+                        html += `<div class="error">✗ ${testCase.name}: ERROR - ${error.message}</div>`;
+                    }
+                });
+
+                // Display current budgets
+                const budgets = budgetMonitor.getBudgets();
+                html += `<div class="metrics-display">Current Budgets: ${JSON.stringify(budgets, null, 2)}</div>`;
+
+                html += `<div class="${allPassed ? 'success' : 'error'}">Performance Budgets Test: ${allPassed ? 'PASSED' : 'FAILED'}</div>`;
+                results.innerHTML = html;
+
+            } catch (error) {
+                results.innerHTML = `<div class="error">Performance Budgets test failed: ${error.message}</div>`;
+            }
+        };
+
+        window.testStatisticsEvents = async function() {
+            const results = document.getElementById('events-results');
+            results.innerHTML = '<div class="info">Testing statistics events...</div>';
+
+            try {
+                const module = await import('./src/utils/core/performance.ts');
+                const eventEmitter = module.statisticsEventEmitter;
+
+                let eventReceived = false;
+                let receivedEvent = null;
+
+                const tests = [
+                    { name: 'Event Emitter Exists', test: () => eventEmitter !== null },
+                    { name: 'Subscribe to Events', test: () => {
+                        const unsubscribe = eventEmitter.subscribe('answer_submitted', (event) => {
+                            eventReceived = true;
+                            receivedEvent = event;
+                        });
+                        return typeof unsubscribe === 'function';
+                    }},
+                    { name: 'Emit Event', test: () => {
+                        eventEmitter.emit('answer_submitted', { correct: 1, total: 1 }, 'test-user');
+                        return true;
+                    }},
+                    { name: 'Event Received', test: () => {
+                        return eventReceived && receivedEvent && receivedEvent.type === 'answer_submitted';
+                    }}
+                ];
+
+                let html = '';
+                let allPassed = true;
+
+                for (const testCase of tests) {
+                    try {
+                        const passed = testCase.test();
+                        const status = passed ? 'success' : 'error';
+                        if (!passed) allPassed = false;
+                        html += `<div class="${status}">✓ ${testCase.name}: ${passed ? 'PASSED' : 'FAILED'}</div>`;
+                        
+                        // Small delay to allow async events to process
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    } catch (error) {
+                        allPassed = false;
+                        html += `<div class="error">✗ ${testCase.name}: ERROR - ${error.message}</div>`;
+                    }
+                }
+
+                if (receivedEvent) {
+                    html += `<div class="metrics-display">Received Event: ${JSON.stringify(receivedEvent, null, 2)}</div>`;
+                }
+
+                html += `<div class="${allPassed ? 'success' : 'error'}">Statistics Events Test: ${allPassed ? 'PASSED' : 'FAILED'}</div>`;
+                results.innerHTML = html;
+
+            } catch (error) {
+                results.innerHTML = `<div class="error">Statistics Events test failed: ${error.message}</div>`;
+            }
+        };
+
+        window.testOptimizationUtils = async function() {
+            const results = document.getElementById('optimization-results');
+            results.innerHTML = '<div class="info">Testing optimization utilities...</div>';
+
+            try {
+                const module = await import('./src/utils/core/performance.ts');
+
+                const testData = Array.from({ length: 1000 }, (_, i) => ({ id: i, value: Math.random() * 100 }));
+                const chartData = Array.from({ length: 200 }, (_, i) => ({ x: i, y: Math.random() * 100 }));
+
+                const tests = [
+                    { name: 'Data Aggregation', test: () => {
+                        const result = module.optimizeDataAggregation(
+                            testData,
+                            (items) => items.reduce((sum, item) => sum + item.value, 0),
+                            100
+                        );
+                        return typeof result === 'number' && result > 0;
+                    }},
+                    { name: 'Chart Data Optimization', test: () => {
+                        const optimized = module.optimizeChartData(chartData, 50);
+                        return Array.isArray(optimized) && optimized.length <= 50;
+                    }},
+                    { name: 'Performance Timing Wrapper', test: () => {
+                        const wrappedFn = module.withPerformanceTiming(() => {
+                            return 'test result';
+                        }, 'test-function');
+                        const result = wrappedFn();
+                        return result === 'test result';
+                    }},
+                    { name: 'Async Performance Timing', test: async () => {
+                        const wrappedFn = module.withAsyncPerformanceTiming(async () => {
+                            await new Promise(resolve => setTimeout(resolve, 10));
+                            return 'async result';
+                        }, 'test-async-function');
+                        const result = await wrappedFn();
+                        return result === 'async result';
+                    }}
+                ];
+
+                let html = '';
+                let allPassed = true;
+
+                for (const testCase of tests) {
+                    try {
+                        const passed = await testCase.test();
+                        const status = passed ? 'success' : 'error';
+                        if (!passed) allPassed = false;
+                        html += `<div class="${status}">✓ ${testCase.name}: ${passed ? 'PASSED' : 'FAILED'}</div>`;
+                    } catch (error) {
+                        allPassed = false;
+                        html += `<div class="error">✗ ${testCase.name}: ERROR - ${error.message}</div>`;
+                    }
+                }
+
+                html += `<div class="${allPassed ? 'success' : 'error'}">Optimization Utils Test: ${allPassed ? 'PASSED' : 'FAILED'}</div>`;
+                results.innerHTML = html;
+
+            } catch (error) {
+                results.innerHTML = `<div class="error">Optimization Utils test failed: ${error.message}</div>`;
+            }
+        };
+
+        window.testCompatibilityLayer = async function() {
+            const results = document.getElementById('compatibility-results');
+            results.innerHTML = '<div class="info">Testing compatibility layer...</div>';
+
+            try {
+                const module = await import('./src/utils/core/performance.ts');
+
+                const tests = [
+                    { name: 'Legacy getPerformanceMonitor', test: () => {
+                        const legacyMonitor = module.getPerformanceMonitor();
+                        return legacyMonitor && typeof legacyMonitor.getMetrics === 'function';
+                    }},
+                    { name: 'Legacy initializePerformanceBudgets', test: () => {
+                        const legacyBudgets = module.initializePerformanceBudgets();
+                        return legacyBudgets && typeof legacyBudgets.getBudgets === 'function';
+                    }},
+                    { name: 'Legacy getPerformanceBudgetMonitor', test: () => {
+                        const legacyBudgetMonitor = module.getPerformanceBudgetMonitor();
+                        return legacyBudgetMonitor && typeof legacyBudgetMonitor.getMetrics === 'function';
+                    }},
+                    { name: 'Default Export', test: () => {
+                        return module.default && typeof module.default === 'object';
+                    }}
+                ];
+
+                let html = '';
+                let allPassed = true;
+
+                tests.forEach(testCase => {
+                    try {
+                        const passed = testCase.test();
+                        const status = passed ? 'success' : 'error';
+                        if (!passed) allPassed = false;
+                        html += `<div class="${status}">✓ ${testCase.name}: ${passed ? 'PASSED' : 'FAILED'}</div>`;
+                    } catch (error) {
+                        allPassed = false;
+                        html += `<div class="error">✗ ${testCase.name}: ERROR - ${error.message}</div>`;
+                    }
+                });
+
+                html += `<div class="${allPassed ? 'success' : 'error'}">Compatibility Layer Test: ${allPassed ? 'PASSED' : 'FAILED'}</div>`;
+                results.innerHTML = html;
+
+            } catch (error) {
+                results.innerHTML = `<div class="error">Compatibility Layer test failed: ${error.message}</div>`;
+            }
+        };
+
+        window.startLiveMetrics = async function() {
+            const results = document.getElementById('live-metrics');
+            
+            try {
+                const module = await import('./src/utils/core/performance.ts');
+                const monitor = module.getConsolidatedPerformanceMonitor();
+
+                results.innerHTML = '<div class="info">Starting live metrics monitoring...</div>';
+
+                liveMetricsInterval = setInterval(() => {
+                    const metrics = monitor.getMetrics();
+                    const insights = monitor.getInsights();
+                    const violations = monitor.getViolations(Date.now() - 60000); // Last minute
+
+                    let html = '<h4>Live Performance Metrics</h4>';
+                    html += `<div class="metrics-display">
+                        <strong>Core Metrics:</strong><br>
+                        Initial Load Time: ${metrics.initialLoadTime || 0}ms<br>
+                        Memory Usage: ${metrics.memoryUsage || 0} bytes<br>
+                        Total Resources: ${metrics.totalResources || 0}<br>
+                        JS Size: ${metrics.jsSize || 0} bytes<br>
+                        CSS Size: ${metrics.cssSize || 0} bytes<br>
+                        Performance Score: ${metrics.performanceScore || 'N/A'}<br>
+                        Budget Score: ${metrics.budgetScore || 'N/A'}
+                    </div>`;
+
+                    html += `<div class="metrics-display">
+                        <strong>Performance Insights:</strong><br>
+                        Overall Score: ${insights.score}<br>
+                        Load Time: ${insights.metrics.loadTime}<br>
+                        Bundle Size: ${insights.metrics.bundleSize}<br>
+                        Code Splitting: ${insights.metrics.codeSplitting}<br>
+                        Caching: ${insights.metrics.caching}<br>
+                        Recommendations: ${insights.recommendations.length}
+                    </div>`;
+
+                    if (violations.length > 0) {
+                        html += '<h5>Recent Budget Violations:</h5>';
+                        violations.forEach(violation => {
+                            html += `<div class="violation-item">
+                                <strong>${violation.metric}</strong>: ${violation.actual} > ${violation.budget} 
+                                (${violation.severity})
+                            </div>`;
+                        });
+                    }
+
+                    results.innerHTML = html;
+                }, 2000);
+
+            } catch (error) {
+                results.innerHTML = `<div class="error">Live metrics failed: ${error.message}</div>`;
+            }
+        };
+
+        window.stopLiveMetrics = function() {
+            if (liveMetricsInterval) {
+                clearInterval(liveMetricsInterval);
+                liveMetricsInterval = null;
+                document.getElementById('live-metrics').innerHTML = '<div class="info">Live metrics monitoring stopped.</div>';
+            }
+        };
+
+        // Auto-run basic import test on load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testBasicImport();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

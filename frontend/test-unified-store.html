@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified Store Test Suite</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-controls {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .test-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+            max-height: 600px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-top: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            text-align: center;
+        }
+        .status.running {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .metric-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid #e9ecef;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #6c757d;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Unified Store Test Suite</h1>
+        
+        <div class="test-controls">
+            <button id="runTests" onclick="runAllTests()">Run All Tests</button>
+            <button id="runPerformance" onclick="runPerformanceTests()">Performance Tests</button>
+            <button id="clearOutput" onclick="clearOutput()">Clear Output</button>
+        </div>
+
+        <div id="status" class="status" style="display: none;"></div>
+        
+        <div class="metrics" id="metrics" style="display: none;">
+            <div class="metric-card">
+                <div class="metric-value" id="totalTests">0</div>
+                <div class="metric-label">Total Tests</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="passedTests">0</div>
+                <div class="metric-label">Passed</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="failedTests">0</div>
+                <div class="metric-label">Failed</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="totalTime">0ms</div>
+                <div class="metric-label">Total Time</div>
+            </div>
+        </div>
+
+        <div id="output" class="test-output"></div>
+    </div>
+
+    <script>
+        // Mock unified store implementation for testing
+        class MockUnifiedStore {
+            constructor() {
+                this.state = {
+                    user: null,
+                    settings: { examCountry: 'am', examLanguage: 'en' },
+                    memoryCache: new Map(),
+                    localStorageCache: new Map(),
+                    pendingRequests: new Map(),
+                    loading: {},
+                    errors: {}
+                };
+                this.subscribers = [];
+            }
+
+            getState() {
+                return this.state;
+            }
+
+            setState(newState) {
+                Object.assign(this.state, newState);
+                this.subscribers.forEach(callback => callback(this.state));
+            }
+
+            subscribe(callback) {
+                this.subscribers.push(callback);
+                return () => {
+                    const index = this.subscribers.indexOf(callback);
+                    if (index > -1) this.subscribers.splice(index, 1);
+                };
+            }
+
+            // Cache operations
+            setCachedData(key, data, ttl = 5 * 60 * 1000) {
+                this.state.memoryCache.set(key, {
+                    data,
+                    timestamp: Date.now(),
+                    ttl
+                });
+            }
+
+            getCachedData(key) {
+                const cached = this.state.memoryCache.get(key);
+                if (!cached) return null;
+                
+                const now = Date.now();
+                if (now - cached.timestamp > cached.ttl) {
+                    this.state.memoryCache.delete(key);
+                    return null;
+                }
+                
+                return cached.data;
+            }
+
+            invalidateCache(pattern) {
+                const keysToDelete = Array.from(this.state.memoryCache.keys())
+                    .filter(key => key.includes(pattern));
+                keysToDelete.forEach(key => this.state.memoryCache.delete(key));
+                return keysToDelete.length;
+            }
+
+            // Request deduplication
+            addPendingRequest(key, promise) {
+                this.state.pendingRequests.set(key, promise);
+                promise.finally(() => {
+                    this.state.pendingRequests.delete(key);
+                });
+                return promise;
+            }
+
+            getPendingRequest(key) {
+                return this.state.pendingRequests.get(key);
+            }
+        }
+
+        // Test runner implementation
+        class TestRunner {
+            constructor() {
+                this.results = [];
+                this.output = document.getElementById('output');
+                this.status = document.getElementById('status');
+                this.metrics = document.getElementById('metrics');
+            }
+
+            log(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+                this.output.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+                this.output.scrollTop = this.output.scrollHeight;
+            }
+
+            showStatus(message, type) {
+                this.status.textContent = message;
+                this.status.className = `status ${type}`;
+                this.status.style.display = 'block';
+            }
+
+            updateMetrics(total, passed, failed, time) {
+                document.getElementById('totalTests').textContent = total;
+                document.getElementById('passedTests').textContent = passed;
+                document.getElementById('failedTests').textContent = failed;
+                document.getElementById('totalTime').textContent = `${time}ms`;
+                this.metrics.style.display = 'grid';
+            }
+
+            async runTest(name, testFn) {
+                const startTime = performance.now();
+                
+                try {
+                    const result = await testFn();
+                    const duration = performance.now() - startTime;
+                    
+                    this.log(`${name} - PASSED (${duration.toFixed(2)}ms)`, 'success');
+                    return { name, passed: true, duration, result };
+                } catch (error) {
+                    const duration = performance.now() - startTime;
+                    
+                    this.log(`${name} - FAILED (${duration.toFixed(2)}ms)`, 'error');
+                    this.log(`  Error: ${error.message}`, 'error');
+                    return { name, passed: false, duration, error: error.message };
+                }
+            }
+
+            async runSuite(suiteName, tests) {
+                this.log(`\n🧪 Running test suite: ${suiteName}`, 'info');
+                this.log('='.repeat(50), 'info');
+                
+                const results = [];
+                const startTime = performance.now();
+                
+                for (const test of tests) {
+                    const result = await this.runTest(test.name, test.fn);
+                    results.push(result);
+                }
+                
+                const totalDuration = performance.now() - startTime;
+                const passed = results.filter(r => r.passed).length;
+                const failed = results.filter(r => !r.passed).length;
+                
+                this.log(`\n📊 Suite Results: ${passed}/${results.length} passed (${totalDuration.toFixed(2)}ms)`, 'info');
+                
+                return { suiteName, results, passed, failed, totalDuration };
+            }
+        }
+
+        // Test implementations
+        const store = new MockUnifiedStore();
+        const runner = new TestRunner();
+
+        const tests = {
+            cacheOperations: async () => {
+                const testData = { id: 1, name: 'Test User' };
+                const cacheKey = 'test-user-1';
+                
+                // Test setting cache
+                store.setCachedData(cacheKey, testData);
+                
+                // Test getting cache
+                const cached = store.getCachedData(cacheKey);
+                if (!cached || cached.id !== 1) {
+                    throw new Error('Cache operation failed');
+                }
+                
+                return { cacheSize: store.getState().memoryCache.size };
+            },
+
+            requestDeduplication: async () => {
+                const requestKey = 'user-123';
+                const mockPromise = Promise.resolve({ id: 123, name: 'User' });
+                
+                // Add pending request
+                store.addPendingRequest(requestKey, mockPromise);
+                
+                // Check if pending request exists
+                const pending = store.getPendingRequest(requestKey);
+                if (!pending) {
+                    throw new Error('Request deduplication failed');
+                }
+                
+                // Wait for promise to resolve and cleanup
+                await mockPromise;
+                
+                return { deduplicated: true };
+            },
+
+            cacheInvalidation: async () => {
+                // Add test data
+                store.setCachedData('user-123', { id: 123 });
+                store.setCachedData('user-456', { id: 456 });
+                store.setCachedData('settings-123', { country: 'am' });
+                
+                // Test invalidation
+                const invalidated = store.invalidateCache('user');
+                
+                // Check results
+                const userCache = store.getCachedData('user-123');
+                const settingsCache = store.getCachedData('settings-123');
+                
+                if (userCache !== null) {
+                    throw new Error('Cache invalidation failed - user cache still exists');
+                }
+                
+                if (settingsCache === null) {
+                    throw new Error('Cache invalidation failed - settings cache was incorrectly removed');
+                }
+                
+                return { invalidatedCount: invalidated };
+            },
+
+            ttlExpiration: async () => {
+                const now = Date.now();
+                
+                // Add expired entry manually
+                store.getState().memoryCache.set('expired-key', {
+                    data: { test: true },
+                    timestamp: now - 10000, // 10 seconds ago
+                    ttl: 5000 // 5 second TTL
+                });
+                
+                // Try to get expired data
+                const expiredData = store.getCachedData('expired-key');
+                
+                if (expiredData !== null) {
+                    throw new Error('TTL expiration failed - expired data was returned');
+                }
+                
+                // Add valid entry
+                store.setCachedData('valid-key', { test: true }, 10000);
+                const validData = store.getCachedData('valid-key');
+                
+                if (validData === null) {
+                    throw new Error('TTL expiration failed - valid data was not returned');
+                }
+                
+                return { expiredRemoved: true, validReturned: true };
+            },
+
+            performanceBenchmark: async () => {
+                const iterations = 1000;
+                const startTime = performance.now();
+                
+                for (let i = 0; i < iterations; i++) {
+                    const key = `benchmark-${i}`;
+                    const data = { id: i, value: `test-${i}` };
+                    
+                    // Set and get cache entry
+                    store.setCachedData(key, data);
+                    const cached = store.getCachedData(key);
+                    
+                    if (!cached || cached.id !== i) {
+                        throw new Error(`Cache operation failed for iteration ${i}`);
+                    }
+                }
+                
+                const endTime = performance.now();
+                const totalTime = endTime - startTime;
+                const avgTime = totalTime / iterations;
+                
+                return {
+                    iterations,
+                    totalTime: totalTime.toFixed(2),
+                    averageTime: avgTime.toFixed(3),
+                    opsPerSecond: Math.round(iterations / (totalTime / 1000))
+                };
+            }
+        };
+
+        async function runAllTests() {
+            const runButton = document.getElementById('runTests');
+            runButton.disabled = true;
+            
+            runner.showStatus('Running tests...', 'running');
+            runner.log('🚀 Starting Unified Store Test Suite');
+            runner.log(`Time: ${new Date().toISOString()}`);
+            
+            try {
+                // Core functionality tests
+                const coreResults = await runner.runSuite('Core Cache Operations', [
+                    { name: 'Memory Cache Operations', fn: tests.cacheOperations },
+                    { name: 'Request Deduplication', fn: tests.requestDeduplication },
+                    { name: 'Cache Invalidation', fn: tests.cacheInvalidation },
+                    { name: 'TTL Expiration Logic', fn: tests.ttlExpiration }
+                ]);
+                
+                // Performance tests
+                const perfResults = await runner.runSuite('Performance Benchmarks', [
+                    { name: 'Cache Operation Speed', fn: tests.performanceBenchmark }
+                ]);
+                
+                // Calculate totals
+                const totalTests = coreResults.results.length + perfResults.results.length;
+                const totalPassed = coreResults.passed + perfResults.passed;
+                const totalFailed = coreResults.failed + perfResults.failed;
+                const totalTime = Math.round(coreResults.totalDuration + perfResults.totalDuration);
+                
+                runner.updateMetrics(totalTests, totalPassed, totalFailed, totalTime);
+                
+                if (totalFailed === 0) {
+                    runner.showStatus('🎉 All tests passed!', 'success');
+                    runner.log('\n🎉 All tests passed!', 'success');
+                } else {
+                    runner.showStatus(`⚠️ ${totalFailed} tests failed`, 'error');
+                    runner.log(`\n⚠️ ${totalFailed} tests failed`, 'error');
+                }
+                
+            } catch (error) {
+                runner.showStatus('Test execution failed', 'error');
+                runner.log(`Test execution failed: ${error.message}`, 'error');
+            } finally {
+                runButton.disabled = false;
+            }
+        }
+
+        async function runPerformanceTests() {
+            const runButton = document.getElementById('runPerformance');
+            runButton.disabled = true;
+            
+            runner.showStatus('Running performance tests...', 'running');
+            runner.log('⚡ Starting Performance Tests');
+            
+            try {
+                const results = await runner.runSuite('Performance Tests', [
+                    { name: 'Cache Operation Speed', fn: tests.performanceBenchmark },
+                    { 
+                        name: 'Memory Usage Test', 
+                        fn: async () => {
+                            const initialSize = store.getState().memoryCache.size;
+                            
+                            // Add 100 cache entries
+                            for (let i = 0; i < 100; i++) {
+                                store.setCachedData(`memory-test-${i}`, { data: `test-${i}` });
+                            }
+                            
+                            const finalSize = store.getState().memoryCache.size;
+                            const added = finalSize - initialSize;
+                            
+                            if (added !== 100) {
+                                throw new Error(`Expected 100 entries, got ${added}`);
+                            }
+                            
+                            return { entriesAdded: added, totalSize: finalSize };
+                        }
+                    }
+                ]);
+                
+                runner.updateMetrics(results.results.length, results.passed, results.failed, Math.round(results.totalDuration));
+                
+                if (results.failed === 0) {
+                    runner.showStatus('⚡ Performance tests passed!', 'success');
+                } else {
+                    runner.showStatus(`⚠️ ${results.failed} performance tests failed`, 'error');
+                }
+                
+            } catch (error) {
+                runner.showStatus('Performance test execution failed', 'error');
+                runner.log(`Performance test execution failed: ${error.message}`, 'error');
+            } finally {
+                runButton.disabled = false;
+            }
+        }
+
+        function clearOutput() {
+            document.getElementById('output').textContent = '';
+            document.getElementById('status').style.display = 'none';
+            document.getElementById('metrics').style.display = 'none';
+        }
+
+        // Initialize
+        runner.log('Unified Store Test Suite Ready');
+        runner.log('Click "Run All Tests" to start testing');
+    </script>
+</body>
+</html>

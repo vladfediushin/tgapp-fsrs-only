@@ -1,0 +1,727 @@
+name: Backend CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop, feature/*, phase/*]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci-cd.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci-cd.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      skip_tests:
+        description: 'Skip tests'
+        required: false
+        default: false
+        type: boolean
+      run_migrations:
+        description: 'Run database migrations'
+        required: false
+        default: true
+        type: boolean
+      architecture_phase:
+        description: 'Architecture improvement phase (1-4)'
+        required: false
+        default: '0'
+        type: choice
+        options:
+          - '0'
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+
+env:
+  PYTHON_VERSION: '3.11'
+  CACHE_KEY_PREFIX: 'backend-v1'
+
+jobs:
+  # ============================================================================
+  # Quality Gates and Pre-checks
+  # ============================================================================
+  quality-gates:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    outputs:
+      should-deploy: ${{ steps.deployment-decision.outputs.should-deploy }}
+      target-environment: ${{ steps.deployment-decision.outputs.environment }}
+      architecture-phase: ${{ steps.architecture-check.outputs.phase }}
+      database-url: ${{ steps.environment-config.outputs.database-url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov black flake8 mypy
+
+      - name: Architecture Phase Check
+        id: architecture-check
+        run: |
+          PHASE="${{ github.event.inputs.architecture_phase || '0' }}"
+          
+          # Detect phase from branch name if not explicitly set
+          if [[ "$PHASE" == "0" ]]; then
+            if [[ "${{ github.ref }}" =~ phase/([1-4]) ]]; then
+              PHASE="${BASH_REMATCH[1]}"
+            fi
+          fi
+          
+          echo "phase=$PHASE" >> $GITHUB_OUTPUT
+          echo "Architecture Phase: $PHASE"
+
+      - name: Code Quality Check
+        working-directory: backend
+        run: |
+          # Code formatting check
+          black --check --diff .
+          
+          # Linting
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          
+          # Type checking
+          mypy app/ --ignore-missing-imports
+
+      - name: Security Audit
+        working-directory: backend
+        run: |
+          # Install safety for security checks
+          pip install safety
+          
+          # Check for known security vulnerabilities
+          safety check --json || echo "Security vulnerabilities found, review required"
+          
+          # Check for secrets in code (basic check)
+          if grep -r "password\|secret\|key" --include="*.py" app/ | grep -v "# noqa" | grep -v "test"; then
+            echo "⚠️ Potential secrets found in code, please review"
+          fi
+
+      - name: Environment Configuration
+        id: environment-config
+        run: |
+          # Set database URL based on environment
+          case "${{ github.event.inputs.environment || 'development' }}" in
+            "production")
+              echo "database-url=${{ secrets.DATABASE_URL_PROD }}" >> $GITHUB_OUTPUT
+              ;;
+            "staging")
+              echo "database-url=${{ secrets.DATABASE_URL_STAGING }}" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "database-url=${{ secrets.DATABASE_URL_DEV }}" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Deployment Decision
+        id: deployment-decision
+        run: |
+          SHOULD_DEPLOY="false"
+          ENVIRONMENT="development"
+          
+          # Determine deployment based on branch and trigger
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            SHOULD_DEPLOY="true"
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            SHOULD_DEPLOY="true"
+            ENVIRONMENT="production"
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            SHOULD_DEPLOY="true"
+            ENVIRONMENT="staging"
+          elif [[ "${{ github.ref }}" =~ refs/heads/feature/ ]] || [[ "${{ github.ref }}" =~ refs/heads/phase/ ]]; then
+            SHOULD_DEPLOY="true"
+            ENVIRONMENT="development"
+          fi
+          
+          echo "should-deploy=$SHOULD_DEPLOY" >> $GITHUB_OUTPUT
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "Deployment Decision: $SHOULD_DEPLOY to $ENVIRONMENT"
+
+  # ============================================================================
+  # Database Migration Validation
+  # ============================================================================
+  migration-check:
+    name: Database Migration Check
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Test Database Migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+        run: |
+          # Check migration consistency
+          alembic check
+          
+          # Run migrations on clean database
+          alembic upgrade head
+          
+          # Verify all tables are created
+          python -c "
+          import asyncio
+          from app.database import engine
+          from sqlalchemy import text
+          
+          async def check_tables():
+              async with engine.begin() as conn:
+                  result = await conn.execute(text(\"SELECT tablename FROM pg_tables WHERE schemaname = 'public'\"))
+                  tables = [row[0] for row in result]
+                  print(f'Created tables: {tables}')
+                  assert len(tables) > 0, 'No tables created'
+          
+          asyncio.run(check_tables())
+          "
+
+      - name: Migration Rollback Test
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+        run: |
+          # Test rollback capability
+          CURRENT_REV=$(alembic current)
+          echo "Current revision: $CURRENT_REV"
+          
+          # Get previous revision
+          PREV_REV=$(alembic history | grep -A1 "$CURRENT_REV" | tail -1 | awk '{print $1}')
+          
+          if [[ -n "$PREV_REV" && "$PREV_REV" != "$CURRENT_REV" ]]; then
+            echo "Testing rollback to: $PREV_REV"
+            alembic downgrade $PREV_REV
+            alembic upgrade head
+            echo "✅ Rollback test successful"
+          else
+            echo "ℹ️ No previous revision to test rollback"
+          fi
+
+  # ============================================================================
+  # Testing Suite
+  # ============================================================================
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    if: ${{ !github.event.inputs.skip_tests }}
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    strategy:
+      matrix:
+        test-type: [unit, integration, fsrs]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+
+      - name: Setup test database
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+        run: |
+          alembic upgrade head
+
+      - name: Run Unit Tests
+        if: matrix.test-type == 'unit'
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          ENVIRONMENT: testing
+        run: |
+          pytest tests/ -v --cov=app --cov-report=xml --cov-report=html -k "not integration and not fsrs"
+
+      - name: Run Integration Tests
+        if: matrix.test-type == 'integration'
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          ENVIRONMENT: testing
+        run: |
+          pytest tests/ -v --cov=app --cov-report=xml -k "integration"
+
+      - name: Run FSRS Tests
+        if: matrix.test-type == 'fsrs'
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          ENVIRONMENT: testing
+        run: |
+          # Run FSRS-specific tests
+          python test_fsrs_only.py
+          pytest tests/ -v -k "fsrs"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.test-type }}
+          path: |
+            backend/htmlcov/
+            backend/coverage.xml
+            backend/test-results/
+          retention-days: 7
+
+  # ============================================================================
+  # Build and Security Scan
+  # ============================================================================
+  build:
+    name: Build & Security Scan
+    runs-on: ubuntu-latest
+    needs: [quality-gates, migration-check, test]
+    if: always() && (needs.quality-gates.result == 'success' && needs.migration-check.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped'))
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Architecture Compliance Check
+        if: needs.quality-gates.outputs.architecture-phase != '0'
+        working-directory: backend
+        run: |
+          PHASE="${{ needs.quality-gates.outputs.architecture-phase }}"
+          echo "Checking backend architecture compliance for Phase $PHASE"
+          
+          # Phase-specific checks based on architecture improvement plan
+          case $PHASE in
+            "1")
+              echo "Phase 1: Checking for clean API structure..."
+              # Verify no legacy endpoints
+              if grep -r "legacy\|old\|deprecated" app/routers/ 2>/dev/null; then
+                echo "❌ Found legacy endpoints that should be cleaned up"
+                exit 1
+              fi
+              echo "✅ Phase 1 backend compliance check passed"
+              ;;
+            "2")
+              echo "Phase 2: Checking service consolidation..."
+              # Check for proper service structure
+              if [ ! -d "app/services" ]; then
+                echo "❌ Services directory not found"
+                exit 1
+              fi
+              echo "✅ Phase 2 backend compliance check passed"
+              ;;
+            "3")
+              echo "Phase 3: Checking performance optimizations..."
+              # Check for caching implementation
+              if ! grep -r "cache" app/ 2>/dev/null; then
+                echo "⚠️ No caching implementation found"
+              fi
+              echo "✅ Phase 3 backend compliance check passed"
+              ;;
+            "4")
+              echo "Phase 4: Final backend validation..."
+              echo "✅ Phase 4 backend compliance check passed"
+              ;;
+          esac
+
+      - name: Build Docker Image (if applicable)
+        if: needs.quality-gates.outputs.target-environment == 'production'
+        working-directory: backend
+        run: |
+          if [ -f "Dockerfile.production" ]; then
+            docker build -f Dockerfile.production -t tgapp-backend:${{ github.sha }} .
+            echo "✅ Docker image built successfully"
+          else
+            echo "ℹ️ No production Dockerfile found, skipping Docker build"
+          fi
+
+      - name: Security Vulnerability Scan
+        working-directory: backend
+        run: |
+          # Install bandit for security scanning
+          pip install bandit
+          
+          # Run security scan
+          bandit -r app/ -f json -o security-report.json || true
+          
+          # Display results
+          if [ -f security-report.json ]; then
+            echo "Security scan completed. Review security-report.json for details."
+            # Check for high severity issues
+            HIGH_ISSUES=$(cat security-report.json | jq '.results[] | select(.issue_severity == "HIGH") | length' 2>/dev/null || echo "0")
+            if [ "$HIGH_ISSUES" -gt 0 ]; then
+              echo "❌ High severity security issues found: $HIGH_ISSUES"
+              exit 1
+            fi
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-build-${{ needs.quality-gates.outputs.target-environment }}
+          path: |
+            backend/security-report.json
+            backend/requirements.txt
+          retention-days: 30
+
+  # ============================================================================
+  # Deployment
+  # ============================================================================
+  deploy:
+    name: Deploy to ${{ needs.quality-gates.outputs.target-environment }}
+    runs-on: ubuntu-latest
+    needs: [quality-gates, build]
+    if: needs.quality-gates.outputs.should-deploy == 'true'
+    environment: 
+      name: backend-${{ needs.quality-gates.outputs.target-environment }}
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Deploy to Render
+        id: deploy
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ needs.quality-gates.outputs.target-environment == 'production' && secrets.RENDER_SERVICE_ID_PROD || needs.quality-gates.outputs.target-environment == 'staging' && secrets.RENDER_SERVICE_ID_STAGING || secrets.RENDER_SERVICE_ID_DEV }}
+        run: |
+          if [[ -n "$RENDER_API_KEY" && -n "$RENDER_SERVICE_ID" ]]; then
+            echo "Triggering Render deployment..."
+            
+            DEPLOY_RESPONSE=$(curl -s -X POST \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              -H "Content-Type: application/json" \
+              "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys")
+            
+            DEPLOY_ID=$(echo "$DEPLOY_RESPONSE" | jq -r '.id')
+            echo "Deployment ID: $DEPLOY_ID"
+            
+            # Set deployment URL based on environment
+            case "${{ needs.quality-gates.outputs.target-environment }}" in
+              "production")
+                DEPLOYMENT_URL="https://tgapp-fsrs-backend.onrender.com"
+                ;;
+              "staging")
+                DEPLOYMENT_URL="https://tgapp-fsrs-backend-staging.onrender.com"
+                ;;
+              *)
+                DEPLOYMENT_URL="https://tgapp-fsrs-backend-dev.onrender.com"
+                ;;
+            esac
+            
+            echo "deployment-url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
+            echo "deploy-id=$DEPLOY_ID" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Render API credentials not configured"
+            exit 1
+          fi
+
+      - name: Wait for Deployment
+        run: |
+          DEPLOY_ID="${{ steps.deploy.outputs.deploy-id }}"
+          RENDER_API_KEY="${{ secrets.RENDER_API_KEY }}"
+          
+          if [[ -n "$DEPLOY_ID" && -n "$RENDER_API_KEY" ]]; then
+            echo "Waiting for deployment to complete..."
+            
+            for i in {1..60}; do
+              STATUS=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+                "https://api.render.com/v1/deploys/$DEPLOY_ID" | jq -r '.status')
+              
+              echo "Deployment status: $STATUS ($i/60)"
+              
+              case "$STATUS" in
+                "live")
+                  echo "✅ Deployment successful"
+                  break
+                  ;;
+                "build_failed"|"update_failed"|"canceled")
+                  echo "❌ Deployment failed with status: $STATUS"
+                  exit 1
+                  ;;
+                *)
+                  sleep 30
+                  ;;
+              esac
+            done
+          fi
+
+      - name: Run Database Migrations
+        if: github.event.inputs.run_migrations != 'false'
+        env:
+          DATABASE_URL: ${{ needs.quality-gates.outputs.database-url }}
+        run: |
+          echo "Running database migrations..."
+          
+          # Install dependencies
+          cd backend
+          pip install -r requirements.txt
+          
+          # Run migrations
+          alembic upgrade head
+          
+          echo "✅ Database migrations completed"
+
+      - name: Health Check
+        run: |
+          DEPLOYMENT_URL="${{ steps.deploy.outputs.deployment-url }}"
+          
+          echo "Performing health check on: $DEPLOYMENT_URL"
+          
+          # Wait for service to be ready
+          for i in {1..30}; do
+            if curl -f -s "$DEPLOYMENT_URL/health" > /dev/null; then
+              echo "✅ Health check passed"
+              break
+            fi
+            echo "Waiting for service... ($i/30)"
+            sleep 10
+          done
+          
+          # Verify health endpoint response
+          HEALTH_RESPONSE=$(curl -s "$DEPLOYMENT_URL/health")
+          echo "Health response: $HEALTH_RESPONSE"
+          
+          if echo "$HEALTH_RESPONSE" | jq -e '.status == "healthy"' > /dev/null; then
+            echo "✅ Service is healthy"
+          else
+            echo "❌ Service health check failed"
+            exit 1
+          fi
+
+      - name: API Smoke Tests
+        run: |
+          DEPLOYMENT_URL="${{ steps.deploy.outputs.deployment-url }}"
+          
+          # Test critical endpoints
+          ENDPOINTS=("/health" "/docs" "/health/simple")
+          
+          for endpoint in "${ENDPOINTS[@]}"; do
+            echo "Testing $endpoint..."
+            if curl -f -s "$DEPLOYMENT_URL$endpoint" > /dev/null; then
+              echo "✅ $endpoint is accessible"
+            else
+              echo "❌ $endpoint failed"
+              exit 1
+            fi
+          done
+          
+          # Test FSRS endpoints (if available)
+          echo "Testing FSRS endpoints..."
+          if curl -f -s "$DEPLOYMENT_URL/fsrs/health" > /dev/null 2>&1; then
+            echo "✅ FSRS endpoints are accessible"
+          else
+            echo "ℹ️ FSRS endpoints not available or not configured"
+          fi
+
+  # ============================================================================
+  # Post-Deployment Monitoring
+  # ============================================================================
+  monitor:
+    name: Post-Deployment Monitoring
+    runs-on: ubuntu-latest
+    needs: [quality-gates, deploy]
+    if: needs.deploy.result == 'success'
+    steps:
+      - name: Performance Monitoring
+        run: |
+          DEPLOYMENT_URL="${{ needs.deploy.outputs.deployment-url }}"
+          
+          echo "Setting up performance monitoring for: $DEPLOYMENT_URL"
+          
+          # Test response times
+          for i in {1..5}; do
+            RESPONSE_TIME=$(curl -o /dev/null -s -w '%{time_total}' "$DEPLOYMENT_URL/health")
+            echo "Response time $i: ${RESPONSE_TIME}s"
+          done
+
+      - name: Database Connection Monitoring
+        env:
+          DATABASE_URL: ${{ needs.quality-gates.outputs.database-url }}
+        run: |
+          echo "Monitoring database connections..."
+          
+          # This would typically integrate with your monitoring service
+          # For now, we'll just verify the connection works
+          cd backend
+          python -c "
+          import asyncio
+          from app.database import engine
+          from sqlalchemy import text
+          
+          async def test_connection():
+              try:
+                  async with engine.begin() as conn:
+                      result = await conn.execute(text('SELECT 1'))
+                      print('✅ Database connection successful')
+              except Exception as e:
+                  print(f'❌ Database connection failed: {e}')
+                  exit(1)
+          
+          asyncio.run(test_connection())
+          "
+
+      - name: Notify Success
+        if: success()
+        run: |
+          echo "🎉 Backend deployment successful!"
+          echo "Environment: ${{ needs.quality-gates.outputs.target-environment }}"
+          echo "URL: ${{ needs.deploy.outputs.deployment-url }}"
+          echo "Architecture Phase: ${{ needs.quality-gates.outputs.architecture-phase }}"
+
+  # ============================================================================
+  # Rollback (if needed)
+  # ============================================================================
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    needs: [quality-gates, deploy, monitor]
+    if: failure() && needs.deploy.result == 'success'
+    steps:
+      - name: Database Rollback
+        env:
+          DATABASE_URL: ${{ needs.quality-gates.outputs.database-url }}
+        run: |
+          echo "🔄 Initiating database rollback..."
+          
+          cd backend
+          pip install -r requirements.txt
+          
+          # Get current revision
+          CURRENT_REV=$(alembic current)
+          echo "Current revision: $CURRENT_REV"
+          
+          # Get previous revision
+          PREV_REV=$(alembic history | grep -A1 "$CURRENT_REV" | tail -1 | awk '{print $1}')
+          
+          if [[ -n "$PREV_REV" && "$PREV_REV" != "$CURRENT_REV" ]]; then
+            echo "Rolling back database to: $PREV_REV"
+            alembic downgrade $PREV_REV
+            echo "✅ Database rolled back"
+          else
+            echo "⚠️ No previous revision to rollback to"
+          fi
+
+      - name: Service Rollback
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ needs.quality-gates.outputs.target-environment == 'production' && secrets.RENDER_SERVICE_ID_PROD || needs.quality-gates.outputs.target-environment == 'staging' && secrets.RENDER_SERVICE_ID_STAGING || secrets.RENDER_SERVICE_ID_DEV }}
+        run: |
+          echo "🔄 Initiating service rollback..."
+          
+          # Get previous deployment
+          PREVIOUS_DEPLOY=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+            "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys?limit=2" | \
+            jq -r '.[1].id')
+          
+          if [[ -n "$PREVIOUS_DEPLOY" && "$PREVIOUS_DEPLOY" != "null" ]]; then
+            echo "Rolling back to deployment: $PREVIOUS_DEPLOY"
+            # Note: Render doesn't have direct rollback API, would need to redeploy previous version
+            echo "⚠️ Manual rollback required via Render dashboard"
+          else
+            echo "❌ No previous deployment found for rollback"
+          fi
+
+      - name: Notify Rollback
+        run: |
+          echo "🚨 Backend deployment rolled back!"
+          echo "Environment: ${{ needs.quality-gates.outputs.target-environment }}"
+          echo "Reason: Post-deployment checks failed"

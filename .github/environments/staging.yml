@@ -1,0 +1,183 @@
+# Staging Environment Configuration
+name: staging
+description: Staging environment for pre-production testing and validation
+
+# Environment protection rules
+protection_rules:
+  required_reviewers: 1
+  wait_timer: 0
+  prevent_self_review: true
+
+# Environment variables
+variables:
+  ENVIRONMENT: staging
+  NODE_ENV: production
+  DEBUG: false
+  LOG_LEVEL: INFO
+  
+  # Frontend URLs
+  FRONTEND_URL: https://tgapp-fsrs-staging.vercel.app
+  VITE_API_URL: https://tgapp-fsrs-backend-staging.onrender.com
+  VITE_ENVIRONMENT: staging
+  
+  # Backend URLs
+  BACKEND_URL: https://tgapp-fsrs-backend-staging.onrender.com
+  
+  # Feature flags
+  ENABLE_FSRS: true
+  ENABLE_CACHING: true
+  ENABLE_ANALYTICS: true
+  ENABLE_METRICS: true
+  ENABLE_TRACING: true
+  
+  # Performance settings
+  REQUEST_TIMEOUT: 30
+  MAX_REQUEST_SIZE: 10485760  # 10MB
+  WORKER_CONNECTIONS: 500
+  
+  # Bundle size limits (production-like)
+  MAX_BUNDLE_SIZE: 500000  # 500KB
+  BUNDLE_ALERT_THRESHOLD: 10  # 10% increase threshold
+
+# Secrets required for this environment
+required_secrets:
+  - DATABASE_URL_STAGING
+  - REDIS_URL_STAGING
+  - SECRET_KEY_STAGING
+  - VERCEL_TOKEN
+  - VERCEL_ORG_ID
+  - VERCEL_PROJECT_ID
+  - RENDER_API_KEY
+  - RENDER_SERVICE_ID_STAGING
+  - SENTRY_DSN_STAGING
+  - SLACK_WEBHOOK_URL
+
+# Deployment configuration
+deployment:
+  auto_deploy: true
+  branches:
+    - develop
+    - main  # For staging validation before production
+  
+  # Health check configuration
+  health_check:
+    enabled: true
+    timeout: 300
+    endpoints:
+      - path: /health
+        expected_status: 200
+      - path: /health/simple
+        expected_status: 200
+      - path: /docs
+        expected_status: 200
+      - path: /fsrs/health
+        expected_status: 200
+  
+  # Rollback configuration
+  rollback:
+    enabled: true
+    automatic: true
+    retention_days: 14
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  alerts:
+    enabled: true
+    channels:
+      - slack
+      - email
+  metrics:
+    enabled: true
+    retention_days: 30
+  logs:
+    level: INFO
+    retention_days: 14
+  
+  # Performance monitoring
+  performance:
+    enabled: true
+    lighthouse_ci: true
+    bundle_analysis: true
+    core_web_vitals: true
+
+# Architecture phase settings
+architecture_phases:
+  phase_1:
+    bundle_size_limit: 600000  # 600KB
+    utils_file_limit: 35
+    duplicate_routes_allowed: false
+    required_tests:
+      - unit
+      - integration
+  
+  phase_2:
+    bundle_size_limit: 550000  # 550KB
+    utils_file_limit: 25
+    performance_monitoring_required: true
+    required_tests:
+      - unit
+      - integration
+      - performance
+  
+  phase_3:
+    bundle_size_limit: 500000  # 500KB
+    utils_file_limit: 15
+    optimization_required: true
+    bundle_reduction_target: 30  # 30% reduction
+    required_tests:
+      - unit
+      - integration
+      - performance
+      - e2e
+  
+  phase_4:
+    bundle_size_limit: 450000  # 450KB
+    utils_file_limit: 15
+    final_validation_required: true
+    bundle_reduction_target: 35  # 35% reduction
+    required_tests:
+      - unit
+      - integration
+      - performance
+      - e2e
+      - security
+
+# Quality gates
+quality_gates:
+  code_coverage:
+    minimum: 80
+    required: true
+  
+  bundle_size:
+    maximum: 500000  # 500KB
+    required: true
+  
+  performance:
+    lighthouse_score: 85
+    core_web_vitals: true
+    required: true
+  
+  security:
+    vulnerability_scan: true
+    dependency_check: true
+    required: true
+
+# Notification settings
+notifications:
+  deployment_success:
+    enabled: true
+    channels: [slack]
+  
+  deployment_failure:
+    enabled: true
+    channels: [slack, email]
+  
+  performance_regression:
+    enabled: true
+    threshold: 10  # 10% performance degradation
+    channels: [slack]
+  
+  security_alerts:
+    enabled: true
+    channels: [slack, email]

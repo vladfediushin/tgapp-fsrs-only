@@ -1,0 +1,615 @@
+name: Bundle Size Monitor & Alerts
+
+on:
+  push:
+    branches: [main, develop, phase/*]
+    paths:
+      - 'frontend/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'frontend/**'
+  schedule:
+    # Run daily at 2 AM UTC to track bundle size trends
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      baseline_branch:
+        description: 'Branch to compare against'
+        required: false
+        default: 'main'
+      alert_threshold:
+        description: 'Alert threshold percentage increase'
+        required: false
+        default: '10'
+
+env:
+  NODE_VERSION: '18'
+  # Bundle size targets based on architecture improvement plan
+  TARGET_REDUCTION: '35' # 35% reduction target
+  MAX_BUNDLE_SIZE: '500000' # 500KB max (current ~2MB target ~1.4MB)
+  ALERT_THRESHOLD: ${{ github.event.inputs.alert_threshold || '10' }}
+
+jobs:
+  # ============================================================================
+  # Bundle Size Analysis
+  # ============================================================================
+  analyze-bundle:
+    name: Bundle Size Analysis
+    runs-on: ubuntu-latest
+    outputs:
+      current-size: ${{ steps.current-analysis.outputs.total-size }}
+      baseline-size: ${{ steps.baseline-analysis.outputs.total-size }}
+      size-change: ${{ steps.comparison.outputs.size-change }}
+      percentage-change: ${{ steps.comparison.outputs.percentage-change }}
+      alert-required: ${{ steps.comparison.outputs.alert-required }}
+      architecture-phase: ${{ steps.phase-detection.outputs.phase }}
+    steps:
+      - name: Checkout current code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Detect Architecture Phase
+        id: phase-detection
+        run: |
+          PHASE="0"
+          
+          # Detect phase from branch name
+          if [[ "${{ github.ref }}" =~ phase/([1-4]) ]]; then
+            PHASE="${BASH_REMATCH[1]}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            # Check for phase markers in recent commits
+            RECENT_COMMITS=$(git log --oneline -10)
+            if echo "$RECENT_COMMITS" | grep -q "phase.*4"; then
+              PHASE="4"
+            elif echo "$RECENT_COMMITS" | grep -q "phase.*3"; then
+              PHASE="3"
+            elif echo "$RECENT_COMMITS" | grep -q "phase.*2"; then
+              PHASE="2"
+            elif echo "$RECENT_COMMITS" | grep -q "phase.*1"; then
+              PHASE="1"
+            fi
+          fi
+          
+          echo "phase=$PHASE" >> $GITHUB_OUTPUT
+          echo "Detected Architecture Phase: $PHASE"
+
+      - name: Build current version
+        working-directory: frontend
+        env:
+          VITE_ENVIRONMENT: production
+          VITE_ARCHITECTURE_PHASE: ${{ steps.phase-detection.outputs.phase }}
+        run: |
+          npm run build
+          
+          # Create detailed bundle analysis
+          npm run build:analyze || echo "Bundle analyzer not available"
+
+      - name: Analyze current bundle
+        id: current-analysis
+        working-directory: frontend
+        run: |
+          # Run bundle size check and capture detailed metrics
+          node scripts/check-bundle-size.js > current-bundle-report.txt 2>&1 || true
+          
+          # Extract metrics
+          TOTAL_SIZE=$(find dist/assets -name "*.js" -exec wc -c {} + | tail -1 | awk '{print $1}')
+          JS_SIZE=$(find dist/assets -name "*.js" -exec wc -c {} + | tail -1 | awk '{print $1}')
+          CSS_SIZE=$(find dist/assets -name "*.css" -exec wc -c {} + | tail -1 | awk '{print $1}' || echo "0")
+          
+          # Get gzipped sizes
+          GZIP_TOTAL=0
+          for file in dist/assets/*.js dist/assets/*.css; do
+            if [ -f "$file" ]; then
+              SIZE=$(gzip -c "$file" | wc -c)
+              GZIP_TOTAL=$((GZIP_TOTAL + SIZE))
+            fi
+          done
+          
+          echo "total-size=$GZIP_TOTAL" >> $GITHUB_OUTPUT
+          echo "js-size=$JS_SIZE" >> $GITHUB_OUTPUT
+          echo "css-size=$CSS_SIZE" >> $GITHUB_OUTPUT
+          echo "raw-total-size=$TOTAL_SIZE" >> $GITHUB_OUTPUT
+          
+          echo "Current bundle size (gzipped): $GZIP_TOTAL bytes"
+          
+          # Store detailed report
+          cat current-bundle-report.txt
+
+      - name: Checkout baseline for comparison
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.baseline_branch || github.base_ref || 'main' }}
+          path: baseline
+
+      - name: Build baseline version
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        working-directory: baseline/frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Analyze baseline bundle
+        id: baseline-analysis
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        working-directory: baseline/frontend
+        run: |
+          # Get baseline gzipped sizes
+          GZIP_TOTAL=0
+          for file in dist/assets/*.js dist/assets/*.css; do
+            if [ -f "$file" ]; then
+              SIZE=$(gzip -c "$file" | wc -c)
+              GZIP_TOTAL=$((GZIP_TOTAL + SIZE))
+            fi
+          done
+          
+          echo "total-size=$GZIP_TOTAL" >> $GITHUB_OUTPUT
+          echo "Baseline bundle size (gzipped): $GZIP_TOTAL bytes"
+
+      - name: Compare bundle sizes
+        id: comparison
+        run: |
+          CURRENT_SIZE="${{ steps.current-analysis.outputs.total-size }}"
+          BASELINE_SIZE="${{ steps.baseline-analysis.outputs.total-size || steps.current-analysis.outputs.total-size }}"
+          
+          if [ "$BASELINE_SIZE" -eq 0 ]; then
+            BASELINE_SIZE="$CURRENT_SIZE"
+          fi
+          
+          SIZE_CHANGE=$((CURRENT_SIZE - BASELINE_SIZE))
+          PERCENTAGE_CHANGE=$(echo "scale=2; ($SIZE_CHANGE * 100) / $BASELINE_SIZE" | bc -l || echo "0")
+          
+          echo "size-change=$SIZE_CHANGE" >> $GITHUB_OUTPUT
+          echo "percentage-change=$PERCENTAGE_CHANGE" >> $GITHUB_OUTPUT
+          
+          # Check if alert is required
+          ALERT_REQUIRED="false"
+          if (( $(echo "$PERCENTAGE_CHANGE > $ALERT_THRESHOLD" | bc -l) )); then
+            ALERT_REQUIRED="true"
+          fi
+          
+          # Check against architecture phase targets
+          PHASE="${{ steps.phase-detection.outputs.phase }}"
+          case $PHASE in
+            "1")
+              # Phase 1: Should see some reduction from dev file exclusion
+              if (( $(echo "$PERCENTAGE_CHANGE > 5" | bc -l) )); then
+                ALERT_REQUIRED="true"
+              fi
+              ;;
+            "2")
+              # Phase 2: Should see significant reduction from utils consolidation
+              if (( $(echo "$PERCENTAGE_CHANGE > -10" | bc -l) )); then
+                echo "⚠️ Phase 2 should show bundle size reduction"
+              fi
+              ;;
+            "3")
+              # Phase 3: Should achieve 30-40% reduction target
+              EXPECTED_REDUCTION="-30"
+              if (( $(echo "$PERCENTAGE_CHANGE > $EXPECTED_REDUCTION" | bc -l) )); then
+                echo "⚠️ Phase 3 not meeting 30% reduction target"
+              fi
+              ;;
+          esac
+          
+          echo "alert-required=$ALERT_REQUIRED" >> $GITHUB_OUTPUT
+          
+          echo "Bundle size comparison:"
+          echo "  Current: $CURRENT_SIZE bytes"
+          echo "  Baseline: $BASELINE_SIZE bytes"
+          echo "  Change: $SIZE_CHANGE bytes ($PERCENTAGE_CHANGE%)"
+          echo "  Alert required: $ALERT_REQUIRED"
+
+      - name: Upload bundle analysis artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-analysis-${{ github.sha }}
+          path: |
+            frontend/current-bundle-report.txt
+            frontend/dist/stats.html
+            baseline/frontend/dist/stats.html
+          retention-days: 30
+
+  # ============================================================================
+  # Bundle Size Validation
+  # ============================================================================
+  validate-bundle:
+    name: Bundle Size Validation
+    runs-on: ubuntu-latest
+    needs: analyze-bundle
+    steps:
+      - name: Check bundle size limits
+        run: |
+          CURRENT_SIZE="${{ needs.analyze-bundle.outputs.current-size }}"
+          MAX_SIZE="${{ env.MAX_BUNDLE_SIZE }}"
+          PHASE="${{ needs.analyze-bundle.outputs.architecture-phase }}"
+          
+          echo "Validating bundle size limits..."
+          echo "Current size: $CURRENT_SIZE bytes"
+          echo "Maximum allowed: $MAX_SIZE bytes"
+          echo "Architecture phase: $PHASE"
+          
+          # Phase-specific limits
+          case $PHASE in
+            "1")
+              # Phase 1: Allow current size but expect some reduction
+              PHASE_LIMIT=$((MAX_SIZE * 120 / 100)) # 20% above target
+              ;;
+            "2")
+              # Phase 2: Stricter limit due to utils consolidation
+              PHASE_LIMIT=$((MAX_SIZE * 110 / 100)) # 10% above target
+              ;;
+            "3")
+              # Phase 3: Should meet target
+              PHASE_LIMIT=$MAX_SIZE
+              ;;
+            "4")
+              # Phase 4: Should be well under target
+              PHASE_LIMIT=$((MAX_SIZE * 90 / 100)) # 10% below target
+              ;;
+            *)
+              PHASE_LIMIT=$((MAX_SIZE * 130 / 100)) # 30% above target for development
+              ;;
+          esac
+          
+          if [ "$CURRENT_SIZE" -gt "$PHASE_LIMIT" ]; then
+            echo "❌ Bundle size ($CURRENT_SIZE bytes) exceeds phase $PHASE limit ($PHASE_LIMIT bytes)"
+            exit 1
+          else
+            echo "✅ Bundle size within phase $PHASE limits"
+          fi
+
+      - name: Architecture phase progress check
+        run: |
+          PHASE="${{ needs.analyze-bundle.outputs.architecture-phase }}"
+          PERCENTAGE_CHANGE="${{ needs.analyze-bundle.outputs.percentage-change }}"
+          
+          echo "Checking architecture improvement progress..."
+          
+          case $PHASE in
+            "1")
+              echo "Phase 1: Critical Cleanup"
+              echo "Expected: Minor bundle size improvements from dev file exclusion"
+              if (( $(echo "$PERCENTAGE_CHANGE < -5" | bc -l) )); then
+                echo "✅ Good progress: ${PERCENTAGE_CHANGE}% reduction"
+              else
+                echo "ℹ️ Phase 1 progress: ${PERCENTAGE_CHANGE}% change"
+              fi
+              ;;
+            "2")
+              echo "Phase 2: Architecture Refactoring"
+              echo "Expected: Significant reduction from utils consolidation (35→15 files)"
+              if (( $(echo "$PERCENTAGE_CHANGE < -15" | bc -l) )); then
+                echo "✅ Excellent progress: ${PERCENTAGE_CHANGE}% reduction"
+              elif (( $(echo "$PERCENTAGE_CHANGE < -5" | bc -l) )); then
+                echo "⚠️ Moderate progress: ${PERCENTAGE_CHANGE}% reduction (target: >15%)"
+              else
+                echo "❌ Insufficient progress: ${PERCENTAGE_CHANGE}% change (expected significant reduction)"
+              fi
+              ;;
+            "3")
+              echo "Phase 3: Optimization and Cleanup"
+              echo "Expected: 30-40% total reduction achieved"
+              if (( $(echo "$PERCENTAGE_CHANGE < -30" | bc -l) )); then
+                echo "✅ Target achieved: ${PERCENTAGE_CHANGE}% reduction"
+              else
+                echo "⚠️ Target not met: ${PERCENTAGE_CHANGE}% change (target: 30-40% reduction)"
+              fi
+              ;;
+            "4")
+              echo "Phase 4: Validation and Testing"
+              echo "Expected: Maintain optimized bundle size"
+              if (( $(echo "$PERCENTAGE_CHANGE > 5" | bc -l) )); then
+                echo "❌ Bundle size regression: ${PERCENTAGE_CHANGE}% increase"
+                exit 1
+              else
+                echo "✅ Bundle size maintained: ${PERCENTAGE_CHANGE}% change"
+              fi
+              ;;
+          esac
+
+  # ============================================================================
+  # Alerts and Notifications
+  # ============================================================================
+  alert:
+    name: Bundle Size Alerts
+    runs-on: ubuntu-latest
+    needs: [analyze-bundle, validate-bundle]
+    if: needs.analyze-bundle.outputs.alert-required == 'true' || failure()
+    steps:
+      - name: Create bundle size alert
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const currentSize = parseInt('${{ needs.analyze-bundle.outputs.current-size }}');
+            const baselineSize = parseInt('${{ needs.analyze-bundle.outputs.baseline-size }}');
+            const sizeChange = parseInt('${{ needs.analyze-bundle.outputs.size-change }}');
+            const percentageChange = parseFloat('${{ needs.analyze-bundle.outputs.percentage-change }}');
+            const phase = '${{ needs.analyze-bundle.outputs.architecture-phase }}';
+            
+            const formatBytes = (bytes) => {
+              if (bytes === 0) return '0 Bytes';
+              const k = 1024;
+              const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+              const i = Math.floor(Math.log(bytes) / Math.log(k));
+              return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            };
+            
+            const alertType = percentageChange > 0 ? '🚨 Bundle Size Increase Alert' : '⚠️ Bundle Size Alert';
+            const emoji = percentageChange > 10 ? '🚨' : percentageChange > 5 ? '⚠️' : 'ℹ️';
+            
+            let phaseContext = '';
+            switch(phase) {
+              case '1':
+                phaseContext = '\n**Architecture Phase 1**: Critical Cleanup - Expected minor improvements from dev file exclusion';
+                break;
+              case '2':
+                phaseContext = '\n**Architecture Phase 2**: Architecture Refactoring - Expected significant reduction from utils consolidation';
+                break;
+              case '3':
+                phaseContext = '\n**Architecture Phase 3**: Optimization - Target 30-40% total reduction';
+                break;
+              case '4':
+                phaseContext = '\n**Architecture Phase 4**: Validation - Maintain optimized bundle size';
+                break;
+            }
+            
+            const alertBody = `## ${alertType}
+            
+            ${emoji} **Bundle size has changed significantly!**
+            
+            **Current Size**: ${formatBytes(currentSize)} (gzipped)
+            **Baseline Size**: ${formatBytes(baselineSize)} (gzipped)
+            **Change**: ${sizeChange > 0 ? '+' : ''}${formatBytes(Math.abs(sizeChange))} (${percentageChange > 0 ? '+' : ''}${percentageChange}%)
+            
+            **Maximum Allowed**: ${formatBytes(parseInt('${{ env.MAX_BUNDLE_SIZE }}'))}
+            **Alert Threshold**: ${process.env.ALERT_THRESHOLD}%
+            ${phaseContext}
+            
+            ### Recommendations:
+            ${percentageChange > 0 ? `
+            - 🔍 Review recent changes that may have increased bundle size
+            - 📦 Check for new dependencies or large imports
+            - 🌳 Ensure tree shaking is working correctly
+            - 📱 Consider code splitting for large features
+            ` : `
+            - ✅ Bundle size reduction detected
+            - 📊 Monitor for any performance impacts
+            - 🎯 Continue optimization efforts
+            `}
+            
+            ### Next Steps:
+            1. Review the bundle analysis report in the workflow artifacts
+            2. Use \`npm run build:analyze\` locally to investigate
+            3. Consider the architecture improvement phase requirements
+            4. Update bundle size targets if this is an expected change
+            
+            ---
+            *This alert was triggered because the bundle size changed by ${percentageChange}%, exceeding the ${process.env.ALERT_THRESHOLD}% threshold.*
+            `;
+            
+            // Create issue for significant increases
+            if (percentageChange > 15) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `🚨 Critical Bundle Size Increase: +${percentageChange}%`,
+                body: alertBody,
+                labels: ['bundle-size', 'performance', 'critical']
+              });
+            }
+            
+            // Comment on PR if applicable
+            if (context.payload.pull_request) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: alertBody
+              });
+            }
+
+      - name: Slack notification (if configured)
+        if: env.SLACK_WEBHOOK_URL
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          CURRENT_SIZE="${{ needs.analyze-bundle.outputs.current-size }}"
+          PERCENTAGE_CHANGE="${{ needs.analyze-bundle.outputs.percentage-change }}"
+          PHASE="${{ needs.analyze-bundle.outputs.architecture-phase }}"
+          
+          # Format size for display
+          FORMATTED_SIZE=$(echo "scale=2; $CURRENT_SIZE / 1024" | bc -l)
+          
+          # Determine alert color
+          if (( $(echo "$PERCENTAGE_CHANGE > 10" | bc -l) )); then
+            COLOR="danger"
+            EMOJI="🚨"
+          elif (( $(echo "$PERCENTAGE_CHANGE > 5" | bc -l) )); then
+            COLOR="warning"
+            EMOJI="⚠️"
+          else
+            COLOR="good"
+            EMOJI="ℹ️"
+          fi
+          
+          # Send Slack notification
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$EMOJI Bundle Size Alert - TG App FSRS\",
+                \"fields\": [
+                  {\"title\": \"Current Size\", \"value\": \"${FORMATTED_SIZE}KB (gzipped)\", \"short\": true},
+                  {\"title\": \"Change\", \"value\": \"${PERCENTAGE_CHANGE}%\", \"short\": true},
+                  {\"title\": \"Architecture Phase\", \"value\": \"Phase $PHASE\", \"short\": true},
+                  {\"title\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"short\": true}
+                ],
+                \"footer\": \"GitHub Actions\",
+                \"ts\": $(date +%s)
+              }]
+            }" \
+            "$SLACK_WEBHOOK_URL"
+
+  # ============================================================================
+  # Bundle Size Trends
+  # ============================================================================
+  track-trends:
+    name: Track Bundle Size Trends
+    runs-on: ubuntu-latest
+    needs: analyze-bundle
+    if: github.ref == 'refs/heads/main' || github.event_name == 'schedule'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Store bundle size metrics
+        run: |
+          # Create metrics directory
+          mkdir -p .github/metrics
+          
+          # Store current metrics
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          CURRENT_SIZE="${{ needs.analyze-bundle.outputs.current-size }}"
+          PHASE="${{ needs.analyze-bundle.outputs.architecture-phase }}"
+          
+          # Append to metrics file
+          echo "$TIMESTAMP,$CURRENT_SIZE,$PHASE,${{ github.sha }}" >> .github/metrics/bundle-size-history.csv
+          
+          # Keep only last 100 entries
+          tail -100 .github/metrics/bundle-size-history.csv > .github/metrics/bundle-size-history.csv.tmp
+          mv .github/metrics/bundle-size-history.csv.tmp .github/metrics/bundle-size-history.csv
+
+      - name: Generate trend report
+        run: |
+          if [ -f ".github/metrics/bundle-size-history.csv" ]; then
+            echo "## Bundle Size Trends" > bundle-trends.md
+            echo "" >> bundle-trends.md
+            echo "| Date | Size (KB) | Phase | Commit |" >> bundle-trends.md
+            echo "|------|-----------|-------|--------|" >> bundle-trends.md
+            
+            # Show last 10 entries
+            tail -10 .github/metrics/bundle-size-history.csv | while IFS=',' read -r timestamp size phase commit; do
+              size_kb=$(echo "scale=2; $size / 1024" | bc -l)
+              short_commit=${commit:0:7}
+              echo "| $timestamp | $size_kb | $phase | $short_commit |" >> bundle-trends.md
+            done
+            
+            echo "" >> bundle-trends.md
+            echo "*Tracking bundle size changes over time to monitor architecture improvement progress.*" >> bundle-trends.md
+            
+            cat bundle-trends.md
+          fi
+
+      - name: Commit metrics (if changed)
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          if git diff --quiet .github/metrics/; then
+            echo "No changes to metrics"
+          else
+            git add .github/metrics/
+            git commit -m "📊 Update bundle size metrics [skip ci]"
+            git push
+          fi
+
+  # ============================================================================
+  # Performance Budget Report
+  # ============================================================================
+  performance-budget:
+    name: Performance Budget Report
+    runs-on: ubuntu-latest
+    needs: analyze-bundle
+    steps:
+      - name: Generate performance budget report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const currentSize = parseInt('${{ needs.analyze-bundle.outputs.current-size }}');
+            const maxSize = parseInt('${{ env.MAX_BUNDLE_SIZE }}');
+            const targetReduction = parseInt('${{ env.TARGET_REDUCTION }}');
+            const phase = '${{ needs.analyze-bundle.outputs.architecture-phase }}';
+            
+            const formatBytes = (bytes) => {
+              const k = 1024;
+              const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+              const i = Math.floor(Math.log(bytes) / Math.log(k));
+              return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            };
+            
+            const budgetUsage = (currentSize / maxSize) * 100;
+            const budgetStatus = budgetUsage > 100 ? '❌ Over Budget' : 
+                               budgetUsage > 90 ? '⚠️ Near Limit' : 
+                               budgetUsage > 75 ? '✅ Good' : '🎯 Excellent';
+            
+            const report = `## 📊 Performance Budget Report
+            
+            ### Current Status: ${budgetStatus}
+            
+            **Bundle Size**: ${formatBytes(currentSize)} (${budgetUsage.toFixed(1)}% of budget)
+            **Budget Limit**: ${formatBytes(maxSize)}
+            **Architecture Phase**: ${phase}
+            
+            ### Progress Tracking
+            
+            | Metric | Current | Target | Status |
+            |--------|---------|--------|--------|
+            | Bundle Size | ${formatBytes(currentSize)} | ${formatBytes(maxSize)} | ${budgetUsage <= 100 ? '✅' : '❌'} |
+            | Reduction Goal | - | ${targetReduction}% | ${phase >= 3 ? '🎯' : '⏳'} |
+            | Phase Progress | ${phase}/4 | 4/4 | ${phase == 4 ? '✅' : '⏳'} |
+            
+            ### Architecture Improvement Phases
+            
+            - **Phase 1** (Critical Cleanup): ${phase >= 1 ? '✅' : '⏳'} Remove duplicates, exclude dev files
+            - **Phase 2** (Refactoring): ${phase >= 2 ? '✅' : '⏳'} Consolidate utils (35→15 files)
+            - **Phase 3** (Optimization): ${phase >= 3 ? '✅' : '⏳'} Achieve 30-40% reduction
+            - **Phase 4** (Validation): ${phase >= 4 ? '✅' : '⏳'} Final testing and validation
+            
+            ### Recommendations
+            
+            ${budgetUsage > 100 ? `
+            🚨 **Critical**: Bundle size exceeds budget by ${(budgetUsage - 100).toFixed(1)}%
+            - Immediate action required to reduce bundle size
+            - Review recent changes and remove unnecessary code
+            - Consider emergency code splitting
+            ` : budgetUsage > 90 ? `
+            ⚠️ **Warning**: Bundle size is near the limit (${budgetUsage.toFixed(1)}% of budget)
+            - Monitor future changes carefully
+            - Plan optimization work for next phase
+            - Consider preemptive code splitting
+            ` : `
+            ✅ **Good**: Bundle size is within acceptable limits
+            - Continue monitoring trends
+            - Maintain current optimization practices
+            - Plan for future architecture phases
+            `}
+            
+            ---
+            *Generated on ${new Date().toISOString()} | Phase ${phase}/4*
+            `;
+            
+            console.log(report);
+            
+            // Save report as artifact
+            require('fs').writeFileSync('performance-budget-report.md', report);
+
+      - name: Upload performance budget report
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-budget-report
+          path: performance-budget-report.md
+          retention-days: 30

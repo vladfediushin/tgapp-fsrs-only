@@ -1,0 +1,342 @@
+# Production Environment Configuration
+name: production
+description: Production environment with strict controls and monitoring
+
+# Environment protection rules
+protection_rules:
+  required_reviewers: 2
+  wait_timer: 300  # 5 minute wait timer
+  prevent_self_review: true
+
+# Environment variables
+variables:
+  ENVIRONMENT: production
+  NODE_ENV: production
+  DEBUG: false
+  LOG_LEVEL: WARN
+  
+  # Frontend URLs
+  FRONTEND_URL: https://tgapp-fsrs.vercel.app
+  VITE_API_URL: https://tgapp-fsrs-backend.onrender.com
+  VITE_ENVIRONMENT: production
+  
+  # Backend URLs
+  BACKEND_URL: https://tgapp-fsrs-backend.onrender.com
+  
+  # Feature flags
+  ENABLE_FSRS: true
+  ENABLE_CACHING: true
+  ENABLE_ANALYTICS: true
+  ENABLE_METRICS: true
+  ENABLE_TRACING: true
+  
+  # Performance settings (optimized for production)
+  REQUEST_TIMEOUT: 30
+  MAX_REQUEST_SIZE: 10485760  # 10MB
+  WORKER_CONNECTIONS: 1000
+  
+  # Bundle size limits (strict production limits)
+  MAX_BUNDLE_SIZE: 450000  # 450KB (target after 35% reduction)
+  BUNDLE_ALERT_THRESHOLD: 5   # 5% increase threshold
+
+# Secrets required for this environment
+required_secrets:
+  - DATABASE_URL_PROD
+  - REDIS_URL_PROD
+  - SECRET_KEY_PROD
+  - VERCEL_TOKEN
+  - VERCEL_ORG_ID
+  - VERCEL_PROJECT_ID
+  - RENDER_API_KEY
+  - RENDER_SERVICE_ID_PROD
+  - SENTRY_DSN_PROD
+  - SLACK_WEBHOOK_URL
+  - SMTP_SERVER
+  - SMTP_USERNAME
+  - SMTP_PASSWORD
+  - ALERT_WEBHOOK_URL
+  - AWS_ACCESS_KEY_ID
+  - AWS_SECRET_ACCESS_KEY
+
+# Deployment configuration
+deployment:
+  auto_deploy: false  # Manual approval required
+  branches:
+    - main
+  
+  # Pre-deployment checks
+  pre_deployment:
+    required_checks:
+      - all_tests_pass
+      - security_scan_pass
+      - performance_budget_met
+      - architecture_compliance
+      - staging_validation
+    
+    manual_approval:
+      required: true
+      reviewers: 2
+      timeout: 3600  # 1 hour timeout
+  
+  # Health check configuration (comprehensive)
+  health_check:
+    enabled: true
+    timeout: 600  # 10 minutes for production
+    retries: 5
+    endpoints:
+      - path: /health
+        expected_status: 200
+        timeout: 10
+      - path: /health/simple
+        expected_status: 200
+        timeout: 5
+      - path: /docs
+        expected_status: 200
+        timeout: 15
+      - path: /fsrs/health
+        expected_status: 200
+        timeout: 10
+    
+    # Post-deployment validation
+    post_deployment:
+      smoke_tests: true
+      performance_check: true
+      error_rate_monitoring: true
+      duration: 300  # 5 minutes monitoring
+  
+  # Rollback configuration (comprehensive)
+  rollback:
+    enabled: true
+    automatic: true
+    triggers:
+      - health_check_failure
+      - error_rate_spike
+      - performance_degradation
+    retention_days: 30
+    
+    # Blue-green deployment support
+    blue_green:
+      enabled: true
+      validation_period: 300  # 5 minutes
+      traffic_split: 10  # Start with 10% traffic
+
+# Monitoring configuration (comprehensive)
+monitoring:
+  enabled: true
+  
+  # Alert configuration
+  alerts:
+    enabled: true
+    severity_levels: [critical, high, medium]
+    channels:
+      - slack
+      - email
+      - pagerduty
+    
+    # Alert thresholds
+    thresholds:
+      error_rate: 1  # 1% error rate
+      response_time: 2000  # 2 seconds
+      cpu_usage: 80  # 80% CPU
+      memory_usage: 85  # 85% memory
+      disk_usage: 90  # 90% disk
+  
+  # Metrics collection
+  metrics:
+    enabled: true
+    retention_days: 90
+    detailed_logging: false  # Minimal logging for performance
+    
+    # Custom metrics
+    custom_metrics:
+      - fsrs_algorithm_performance
+      - user_engagement_metrics
+      - learning_effectiveness
+      - bundle_size_trends
+  
+  # Log management
+  logs:
+    level: WARN
+    retention_days: 30
+    structured_logging: true
+    
+    # Log aggregation
+    aggregation:
+      enabled: true
+      service: loki
+      retention: 30d
+
+# Architecture phase settings (production requirements)
+architecture_phases:
+  phase_1:
+    bundle_size_limit: 550000  # 550KB
+    utils_file_limit: 35
+    duplicate_routes_allowed: false
+    required_tests: [unit, integration, security]
+    deployment_gate: manual_approval
+  
+  phase_2:
+    bundle_size_limit: 500000  # 500KB
+    utils_file_limit: 25
+    performance_monitoring_required: true
+    required_tests: [unit, integration, performance, security]
+    deployment_gate: manual_approval
+    validation_period: 600  # 10 minutes
+  
+  phase_3:
+    bundle_size_limit: 450000  # 450KB (30% reduction achieved)
+    utils_file_limit: 15
+    optimization_required: true
+    bundle_reduction_target: 30
+    required_tests: [unit, integration, performance, e2e, security]
+    deployment_gate: manual_approval
+    validation_period: 900  # 15 minutes
+    
+    # Performance requirements
+    performance_requirements:
+      lighthouse_score: 90
+      first_contentful_paint: 1500  # 1.5s
+      largest_contentful_paint: 2500  # 2.5s
+      cumulative_layout_shift: 0.1
+  
+  phase_4:
+    bundle_size_limit: 400000  # 400KB (40% reduction achieved)
+    utils_file_limit: 15
+    final_validation_required: true
+    bundle_reduction_target: 35
+    required_tests: [unit, integration, performance, e2e, security, load]
+    deployment_gate: manual_approval
+    validation_period: 1800  # 30 minutes
+    
+    # Strict performance requirements
+    performance_requirements:
+      lighthouse_score: 95
+      first_contentful_paint: 1200  # 1.2s
+      largest_contentful_paint: 2000  # 2.0s
+      cumulative_layout_shift: 0.05
+      time_to_interactive: 3000  # 3.0s
+
+# Quality gates (strict production requirements)
+quality_gates:
+  code_coverage:
+    minimum: 90
+    required: true
+    enforcement: blocking
+  
+  bundle_size:
+    maximum: 450000  # 450KB
+    required: true
+    enforcement: blocking
+  
+  performance:
+    lighthouse_score: 90
+    core_web_vitals: true
+    required: true
+    enforcement: blocking
+  
+  security:
+    vulnerability_scan: true
+    dependency_check: true
+    secrets_scan: true
+    required: true
+    enforcement: blocking
+  
+  # Architecture compliance
+  architecture:
+    utils_file_count: 15
+    duplicate_code_threshold: 5  # 5% max duplication
+    complexity_threshold: 10
+    required: true
+    enforcement: blocking
+
+# Backup and disaster recovery
+backup:
+  enabled: true
+  frequency: daily
+  retention: 30d
+  
+  # Database backup
+  database:
+    enabled: true
+    frequency: "0 2 * * *"  # Daily at 2 AM
+    retention: 30d
+    encryption: true
+  
+  # Application state backup
+  application:
+    enabled: true
+    frequency: "0 3 * * *"  # Daily at 3 AM
+    retention: 7d
+
+# Notification settings (comprehensive)
+notifications:
+  deployment_start:
+    enabled: true
+    channels: [slack]
+  
+  deployment_success:
+    enabled: true
+    channels: [slack, email]
+  
+  deployment_failure:
+    enabled: true
+    channels: [slack, email, pagerduty]
+    escalation: true
+  
+  performance_regression:
+    enabled: true
+    threshold: 5  # 5% performance degradation
+    channels: [slack, email]
+  
+  security_alerts:
+    enabled: true
+    channels: [slack, email, pagerduty]
+    escalation: true
+  
+  error_rate_spike:
+    enabled: true
+    threshold: 1  # 1% error rate
+    channels: [slack, pagerduty]
+  
+  # Business metrics alerts
+  business_metrics:
+    enabled: true
+    metrics:
+      - user_engagement_drop
+      - learning_effectiveness_decline
+      - fsrs_algorithm_errors
+    channels: [slack, email]
+
+# Compliance and governance
+compliance:
+  data_protection:
+    enabled: true
+    gdpr_compliance: true
+    data_retention_policy: 365d
+  
+  audit_logging:
+    enabled: true
+    retention: 90d
+    immutable: true
+  
+  change_management:
+    enabled: true
+    approval_required: true
+    documentation_required: true
+
+# Maintenance windows
+maintenance:
+  scheduled_windows:
+    - day: sunday
+      time: "02:00-04:00"
+      timezone: UTC
+      type: regular
+    - day: first_sunday_of_month
+      time: "01:00-05:00"
+      timezone: UTC
+      type: extended
+  
+  emergency_maintenance:
+    enabled: true
+    approval_bypass: true
+    notification_required: true

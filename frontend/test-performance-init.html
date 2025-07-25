@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Init Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .metric {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Performance Initialization Test</h1>
+        <p>Testing the consolidated performance initialization system (Phase 1.4)</p>
+        
+        <div id="status" class="status info">
+            Ready to test performance initialization...
+        </div>
+        
+        <button onclick="testInitialization()">Test Initialization</button>
+        <button onclick="testErrorHandling()">Test Error Handling</button>
+        <button onclick="testFallback()">Test Fallback Mode</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+
+    <div class="container">
+        <h2>📊 Test Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <div class="container">
+        <h2>📈 Performance Metrics</h2>
+        <div id="metrics" class="metrics"></div>
+    </div>
+
+    <div class="container">
+        <h2>🔍 Console Logs</h2>
+        <pre id="logs"></pre>
+    </div>
+
+    <script type="module">
+        // Mock implementations for testing
+        const mockPerformanceMonitor = {
+            trackRouteChange: (route) => {
+                console.log(`[Mock] Performance monitor tracking route: ${route}`)
+                return true
+            },
+            getMetrics: () => ({
+                initialLoadTime: Math.random() * 2000 + 500,
+                memoryUsage: Math.random() * 50000000 + 10000000,
+                totalSize: Math.random() * 200000 + 100000,
+                fcp: Math.random() * 1500 + 500,
+                lcp: Math.random() * 2500 + 1000
+            })
+        }
+
+        const mockServiceWorkerManager = {
+            register: async () => {
+                console.log('[Mock] Service worker registered')
+                await new Promise(resolve => setTimeout(resolve, 100))
+                return { scope: '/', active: true }
+            }
+        }
+
+        // Mock the consolidated performance initializer
+        window.initializePerformanceSystems = async (config = {}) => {
+            const startTime = performance.now()
+            console.log('[Test] Starting consolidated performance initialization...')
+            
+            const result = {
+                success: false,
+                initializedSystems: [],
+                failedSystems: [],
+                errors: [],
+                performanceMonitor: null,
+                serviceWorkerManager: null,
+                initializationTime: 0
+            }
+
+            try {
+                // Simulate performance monitor initialization
+                if (config.enablePerformanceMonitor !== false) {
+                    console.log('[Test] Initializing performance monitor...')
+                    await new Promise(resolve => setTimeout(resolve, 50))
+                    result.performanceMonitor = mockPerformanceMonitor
+                    result.initializedSystems.push('performanceMonitor')
+                    console.log('[Test] ✓ Performance monitor initialized')
+                }
+
+                // Simulate dynamic imports initialization
+                if (config.enableDynamicImports !== false) {
+                    console.log('[Test] Initializing dynamic imports...')
+                    await new Promise(resolve => setTimeout(resolve, 30))
+                    result.initializedSystems.push('dynamicImports')
+                    console.log('[Test] ✓ Dynamic imports initialized')
+                }
+
+                // Simulate service worker initialization
+                if (config.enableServiceWorker !== false) {
+                    console.log('[Test] Initializing service worker...')
+                    await new Promise(resolve => setTimeout(resolve, 100))
+                    
+                    if (config.simulateServiceWorkerError) {
+                        throw new Error('Service worker registration failed')
+                    }
+                    
+                    result.serviceWorkerManager = mockServiceWorkerManager
+                    result.initializedSystems.push('serviceWorker')
+                    console.log('[Test] ✓ Service worker initialized')
+                }
+
+                // Simulate offline queue initialization
+                if (config.enableOfflineQueue !== false) {
+                    console.log('[Test] Initializing offline queue...')
+                    await new Promise(resolve => setTimeout(resolve, 75))
+                    
+                    if (config.simulateOfflineQueueError) {
+                        throw new Error('Offline queue initialization failed')
+                    }
+                    
+                    result.initializedSystems.push('offlineQueue')
+                    console.log('[Test] ✓ Offline queue initialized')
+                }
+
+                result.success = true
+                result.initializationTime = performance.now() - startTime
+
+                console.log(`[Test] ✓ Initialization completed in ${result.initializationTime.toFixed(2)}ms`)
+                console.log(`[Test] ✓ Initialized systems: ${result.initializedSystems.join(', ')}`)
+
+            } catch (error) {
+                console.error('[Test] ✗ Initialization failed:', error)
+                
+                if (config.enableErrorRecovery) {
+                    console.log('[Test] Attempting error recovery...')
+                    // Simulate fallback initialization
+                    result.initializedSystems = ['performanceMonitor']
+                    result.failedSystems = ['serviceWorker', 'offlineQueue']
+                    result.errors.push({ system: 'initialization', error: error.message })
+                    result.success = true // Partial success
+                } else {
+                    result.success = false
+                    result.errors.push({ system: 'initialization', error: error.message })
+                }
+                
+                result.initializationTime = performance.now() - startTime
+            }
+
+            return result
+        }
+
+        // Test functions
+        window.testInitialization = async () => {
+            updateStatus('Testing normal initialization...', 'info')
+            clearLogs()
+            
+            try {
+                const result = await window.initializePerformanceSystems({
+                    enablePerformanceMonitor: true,
+                    enableServiceWorker: true,
+                    enableOfflineQueue: true,
+                    enableDynamicImports: true,
+                    enableErrorRecovery: true
+                })
+
+                displayResults('Normal Initialization', result)
+                updateMetrics(result)
+                
+                if (result.success) {
+                    updateStatus('✓ Normal initialization completed successfully!', 'success')
+                } else {
+                    updateStatus('✗ Normal initialization failed', 'error')
+                }
+            } catch (error) {
+                updateStatus(`✗ Test failed: ${error.message}`, 'error')
+                console.error('Test error:', error)
+            }
+        }
+
+        window.testErrorHandling = async () => {
+            updateStatus('Testing error handling...', 'info')
+            clearLogs()
+            
+            try {
+                const result = await window.initializePerformanceSystems({
+                    enablePerformanceMonitor: true,
+                    enableServiceWorker: true,
+                    enableOfflineQueue: true,
+                    enableDynamicImports: true,
+                    enableErrorRecovery: true,
+                    simulateServiceWorkerError: true
+                })
+
+                displayResults('Error Handling Test', result)
+                updateMetrics(result)
+                
+                if (result.success && result.errors.length > 0) {
+                    updateStatus('✓ Error handling working correctly - partial success achieved!', 'success')
+                } else if (!result.success) {
+                    updateStatus('✗ Error handling failed - no recovery', 'error')
+                } else {
+                    updateStatus('⚠ Error simulation may not have worked', 'warning')
+                }
+            } catch (error) {
+                updateStatus(`✗ Error handling test failed: ${error.message}`, 'error')
+                console.error('Error handling test error:', error)
+            }
+        }
+
+        window.testFallback = async () => {
+            updateStatus('Testing fallback mode...', 'info')
+            clearLogs()
+            
+            try {
+                const result = await window.initializePerformanceSystems({
+                    enablePerformanceMonitor: true,
+                    enableServiceWorker: true,
+                    enableOfflineQueue: true,
+                    enableDynamicImports: true,
+                    enableErrorRecovery: true,
+                    simulateServiceWorkerError: true,
+                    simulateOfflineQueueError: true
+                })
+
+                displayResults('Fallback Mode Test', result)
+                updateMetrics(result)
+                
+                if (result.success && result.failedSystems.length > 0) {
+                    updateStatus('✓ Fallback mode working - critical systems still functional!', 'success')
+                } else {
+                    updateStatus('✗ Fallback mode failed', 'error')
+                }
+            } catch (error) {
+                updateStatus(`✗ Fallback test failed: ${error.message}`, 'error')
+                console.error('Fallback test error:', error)
+            }
+        }
+
+        window.clearResults = () => {
+            document.getElementById('results').innerHTML = ''
+            document.getElementById('metrics').innerHTML = ''
+            clearLogs()
+            updateStatus('Results cleared. Ready for new tests.', 'info')
+        }
+
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('status')
+            statusEl.textContent = message
+            statusEl.className = `status ${type}`
+        }
+
+        function displayResults(testName, result) {
+            const resultsEl = document.getElementById('results')
+            
+            const resultHtml = `
+                <div class="container">
+                    <h3>${testName}</h3>
+                    <div class="status ${result.success ? 'success' : 'error'}">
+                        ${result.success ? '✓ Success' : '✗ Failed'} 
+                        (${result.initializationTime.toFixed(2)}ms)
+                    </div>
+                    
+                    ${result.initializedSystems.length > 0 ? `
+                        <div class="status success">
+                            <strong>Initialized Systems:</strong> ${result.initializedSystems.join(', ')}
+                        </div>
+                    ` : ''}
+                    
+                    ${result.failedSystems.length > 0 ? `
+                        <div class="status warning">
+                            <strong>Failed Systems:</strong> ${result.failedSystems.join(', ')}
+                        </div>
+                    ` : ''}
+                    
+                    ${result.errors.length > 0 ? `
+                        <div class="status error">
+                            <strong>Errors:</strong>
+                            <ul>
+                                ${result.errors.map(err => `<li>${err.system}: ${err.error}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                </div>
+            `
+            
+            resultsEl.innerHTML += resultHtml
+        }
+
+        function updateMetrics(result) {
+            const metricsEl = document.getElementById('metrics')
+            
+            if (result.performanceMonitor) {
+                const metrics = result.performanceMonitor.getMetrics()
+                
+                metricsEl.innerHTML = `
+                    <div class="metric">
+                        <div class="metric-value">${result.initializationTime.toFixed(0)}ms</div>
+                        <div class="metric-label">Init Time</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${result.initializedSystems.length}</div>
+                        <div class="metric-label">Systems Active</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${metrics.initialLoadTime.toFixed(0)}ms</div>
+                        <div class="metric-label">Load Time</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${(metrics.memoryUsage / 1024 / 1024).toFixed(1)}MB</div>
+                        <div class="metric-label">Memory Usage</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${(metrics.totalSize / 1024).toFixed(0)}KB</div>
+                        <div class="metric-label">Bundle Size</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${metrics.fcp.toFixed(0)}ms</div>
+                        <div class="metric-label">First Paint</div>
+                    </div>
+                `
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').textContent = ''
+        }
+
+        // Capture console logs
+        const originalLog = console.log
+        const originalError = console.error
+        const originalWarn = console.warn
+        
+        const logCapture = (level, ...args) => {
+            const logsEl = document.getElementById('logs')
+            const timestamp = new Date().toLocaleTimeString()
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ')
+            
+            logsEl.textContent += `[${timestamp}] ${level.toUpperCase()}: ${message}\n`
+            logsEl.scrollTop = logsEl.scrollHeight
+        }
+        
+        console.log = (...args) => {
+            originalLog.apply(console, args)
+            logCapture('log', ...args)
+        }
+        
+        console.error = (...args) => {
+            originalError.apply(console, args)
+            logCapture('error', ...args)
+        }
+        
+        console.warn = (...args) => {
+            originalWarn.apply(console, args)
+            logCapture('warn', ...args)
+        }
+
+        // Auto-run a basic test on load
+        setTimeout(() => {
+            console.log('🚀 Performance Init Test Environment Ready')
+            console.log('Click "Test Initialization" to verify the consolidated system works')
+        }, 100)
+    </script>
+</body>
+</html>

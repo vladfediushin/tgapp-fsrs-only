@@ -1,0 +1,109 @@
+# Development Environment Configuration
+name: development
+description: Development environment for feature branches and testing
+
+# Environment protection rules
+protection_rules:
+  required_reviewers: 0
+  wait_timer: 0
+  prevent_self_review: false
+
+# Environment variables
+variables:
+  ENVIRONMENT: development
+  NODE_ENV: development
+  DEBUG: true
+  LOG_LEVEL: DEBUG
+  
+  # Frontend URLs
+  FRONTEND_URL: https://tgapp-fsrs-dev.vercel.app
+  VITE_API_URL: https://tgapp-fsrs-backend-dev.onrender.com
+  VITE_ENVIRONMENT: development
+  
+  # Backend URLs
+  BACKEND_URL: https://tgapp-fsrs-backend-dev.onrender.com
+  
+  # Feature flags
+  ENABLE_FSRS: true
+  ENABLE_CACHING: false
+  ENABLE_ANALYTICS: false
+  ENABLE_METRICS: true
+  ENABLE_TRACING: false
+  
+  # Performance settings
+  REQUEST_TIMEOUT: 60
+  MAX_REQUEST_SIZE: 52428800  # 50MB for development
+  WORKER_CONNECTIONS: 100
+  
+  # Bundle size limits (more lenient for development)
+  MAX_BUNDLE_SIZE: 650000  # 650KB
+  BUNDLE_ALERT_THRESHOLD: 15  # 15% increase threshold
+
+# Secrets required for this environment
+required_secrets:
+  - DATABASE_URL_DEV
+  - REDIS_URL_DEV
+  - SECRET_KEY_DEV
+  - VERCEL_TOKEN
+  - VERCEL_ORG_ID
+  - VERCEL_PROJECT_ID
+  - RENDER_API_KEY
+  - RENDER_SERVICE_ID_DEV
+
+# Deployment configuration
+deployment:
+  auto_deploy: true
+  branches:
+    - feature/*
+    - phase/*
+    - develop
+  
+  # Health check configuration
+  health_check:
+    enabled: true
+    timeout: 300
+    endpoints:
+      - path: /health
+        expected_status: 200
+      - path: /health/simple
+        expected_status: 200
+  
+  # Rollback configuration
+  rollback:
+    enabled: true
+    automatic: false
+    retention_days: 7
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  alerts:
+    enabled: false  # Disable alerts for development
+  metrics:
+    enabled: true
+    retention_days: 7
+  logs:
+    level: DEBUG
+    retention_days: 3
+
+# Architecture phase settings
+architecture_phases:
+  phase_1:
+    bundle_size_limit: 700000  # 700KB
+    utils_file_limit: 35
+    duplicate_routes_allowed: false
+  
+  phase_2:
+    bundle_size_limit: 600000  # 600KB
+    utils_file_limit: 25
+    performance_monitoring_required: true
+  
+  phase_3:
+    bundle_size_limit: 500000  # 500KB
+    utils_file_limit: 15
+    optimization_required: true
+  
+  phase_4:
+    bundle_size_limit: 450000  # 450KB
+    utils_file_limit: 15
+    final_validation_required: true

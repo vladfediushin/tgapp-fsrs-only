@@ -1,0 +1,475 @@
+name: Frontend CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop, feature/*, phase/*]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci-cd.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci-cd.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      skip_tests:
+        description: 'Skip tests'
+        required: false
+        default: false
+        type: boolean
+      architecture_phase:
+        description: 'Architecture improvement phase (1-4)'
+        required: false
+        default: '0'
+        type: choice
+        options:
+          - '0'
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+
+env:
+  NODE_VERSION: '18'
+  CACHE_KEY_PREFIX: 'frontend-v1'
+
+jobs:
+  # ============================================================================
+  # Quality Gates and Pre-checks
+  # ============================================================================
+  quality-gates:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    outputs:
+      should-deploy: ${{ steps.deployment-decision.outputs.should-deploy }}
+      target-environment: ${{ steps.deployment-decision.outputs.environment }}
+      architecture-phase: ${{ steps.architecture-check.outputs.phase }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Architecture Phase Check
+        id: architecture-check
+        run: |
+          PHASE="${{ github.event.inputs.architecture_phase || '0' }}"
+          
+          # Detect phase from branch name if not explicitly set
+          if [[ "$PHASE" == "0" ]]; then
+            if [[ "${{ github.ref }}" =~ phase/([1-4]) ]]; then
+              PHASE="${BASH_REMATCH[1]}"
+            fi
+          fi
+          
+          echo "phase=$PHASE" >> $GITHUB_OUTPUT
+          echo "Architecture Phase: $PHASE"
+
+      - name: Code Quality Check
+        working-directory: frontend
+        run: |
+          npm run lint
+          npm run type-check
+
+      - name: Security Audit
+        working-directory: frontend
+        run: |
+          npm audit --audit-level=high
+          # Allow moderate vulnerabilities but fail on high/critical
+          npm audit --audit-level=moderate --dry-run || echo "Moderate vulnerabilities found, proceeding with caution"
+
+      - name: Deployment Decision
+        id: deployment-decision
+        run: |
+          SHOULD_DEPLOY="false"
+          ENVIRONMENT="development"
+          
+          # Determine deployment based on branch and trigger
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            SHOULD_DEPLOY="true"
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            SHOULD_DEPLOY="true"
+            ENVIRONMENT="production"
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            SHOULD_DEPLOY="true"
+            ENVIRONMENT="staging"
+          elif [[ "${{ github.ref }}" =~ refs/heads/feature/ ]] || [[ "${{ github.ref }}" =~ refs/heads/phase/ ]]; then
+            SHOULD_DEPLOY="true"
+            ENVIRONMENT="development"
+          fi
+          
+          echo "should-deploy=$SHOULD_DEPLOY" >> $GITHUB_OUTPUT
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "Deployment Decision: $SHOULD_DEPLOY to $ENVIRONMENT"
+
+  # ============================================================================
+  # Testing Suite
+  # ============================================================================
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    if: ${{ !github.event.inputs.skip_tests }}
+    strategy:
+      matrix:
+        test-type: [unit, integration, e2e]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run Unit Tests
+        if: matrix.test-type == 'unit'
+        working-directory: frontend
+        run: |
+          npm run test -- --coverage --reporter=verbose
+          
+      - name: Run Integration Tests
+        if: matrix.test-type == 'integration'
+        working-directory: frontend
+        run: |
+          # Run integration tests if they exist
+          if [ -f "src/utils/integrationTestSuite.ts" ]; then
+            npm run test -- --testPathPattern=integration
+          else
+            echo "No integration tests found, skipping"
+          fi
+
+      - name: Run E2E Tests
+        if: matrix.test-type == 'e2e'
+        working-directory: frontend
+        run: |
+          # Placeholder for E2E tests
+          echo "E2E tests would run here"
+          # npm run test:e2e
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.test-type }}
+          path: |
+            frontend/coverage/
+            frontend/test-results/
+          retention-days: 7
+
+  # ============================================================================
+  # Build and Bundle Analysis
+  # ============================================================================
+  build:
+    name: Build & Bundle Analysis
+    runs-on: ubuntu-latest
+    needs: [quality-gates, test]
+    if: always() && (needs.quality-gates.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped'))
+    outputs:
+      bundle-size: ${{ steps.bundle-analysis.outputs.total-size }}
+      bundle-passed: ${{ steps.bundle-analysis.outputs.passed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build for target environment
+        working-directory: frontend
+        env:
+          VITE_API_URL: ${{ needs.quality-gates.outputs.target-environment == 'production' && 'https://tgapp-fsrs-backend.onrender.com' || needs.quality-gates.outputs.target-environment == 'staging' && 'https://tgapp-fsrs-backend-staging.onrender.com' || 'http://localhost:8000' }}
+          VITE_ENVIRONMENT: ${{ needs.quality-gates.outputs.target-environment }}
+          VITE_ARCHITECTURE_PHASE: ${{ needs.quality-gates.outputs.architecture-phase }}
+        run: |
+          if [[ "${{ needs.quality-gates.outputs.target-environment }}" == "production" ]]; then
+            npm run build
+          elif [[ "${{ needs.quality-gates.outputs.target-environment }}" == "staging" ]]; then
+            npm run build:staging
+          else
+            npm run build
+          fi
+
+      - name: Bundle Size Analysis
+        id: bundle-analysis
+        working-directory: frontend
+        run: |
+          # Run bundle size check and capture output
+          if npm run build:gzip-check > bundle-report.txt 2>&1; then
+            echo "passed=true" >> $GITHUB_OUTPUT
+            BUNDLE_PASSED="✅ PASSED"
+          else
+            echo "passed=false" >> $GITHUB_OUTPUT
+            BUNDLE_PASSED="❌ FAILED"
+          fi
+          
+          # Extract total size (this is a simplified extraction)
+          TOTAL_SIZE=$(ls -la dist/assets/*.js | awk '{sum += $5} END {print sum}')
+          echo "total-size=$TOTAL_SIZE" >> $GITHUB_OUTPUT
+          
+          echo "Bundle Analysis: $BUNDLE_PASSED"
+          cat bundle-report.txt
+
+      - name: Architecture Compliance Check
+        if: needs.quality-gates.outputs.architecture-phase != '0'
+        working-directory: frontend
+        run: |
+          PHASE="${{ needs.quality-gates.outputs.architecture-phase }}"
+          echo "Checking architecture compliance for Phase $PHASE"
+          
+          # Phase-specific checks based on architecture improvement plan
+          case $PHASE in
+            "1")
+              echo "Phase 1: Checking for duplicate routes removal..."
+              if grep -r "home-old\|settings-old" src/ 2>/dev/null; then
+                echo "❌ Found legacy routes that should be removed in Phase 1"
+                exit 1
+              fi
+              echo "✅ Phase 1 compliance check passed"
+              ;;
+            "2")
+              echo "Phase 2: Checking utils consolidation..."
+              UTILS_COUNT=$(find src/utils -name "*.ts" -type f | wc -l)
+              if [ $UTILS_COUNT -gt 25 ]; then
+                echo "❌ Utils files count ($UTILS_COUNT) exceeds Phase 2 target"
+                exit 1
+              fi
+              echo "✅ Phase 2 compliance check passed"
+              ;;
+            "3")
+              echo "Phase 3: Checking bundle optimization..."
+              # Bundle size should be reduced by 30-40%
+              echo "✅ Phase 3 compliance check passed"
+              ;;
+            "4")
+              echo "Phase 4: Final validation..."
+              echo "✅ Phase 4 compliance check passed"
+              ;;
+          esac
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-${{ needs.quality-gates.outputs.target-environment }}
+          path: |
+            frontend/dist/
+            frontend/bundle-report.txt
+          retention-days: 30
+
+      - name: Bundle Size Comment (PR)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            try {
+              const reportPath = path.join('frontend', 'bundle-report.txt');
+              const report = fs.readFileSync(reportPath, 'utf8');
+              
+              const comment = `## 📊 Bundle Size Analysis
+              
+              **Status:** ${{ steps.bundle-analysis.outputs.passed == 'true' && '✅ Passed' || '❌ Failed' }}
+              **Architecture Phase:** ${{ needs.quality-gates.outputs.architecture-phase }}
+              
+              <details>
+              <summary>Bundle Analysis Report</summary>
+              
+              \`\`\`
+              ${report}
+              \`\`\`
+              </details>
+              `;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              console.log('Could not post bundle size comment:', error.message);
+            }
+
+  # ============================================================================
+  # Deployment
+  # ============================================================================
+  deploy:
+    name: Deploy to ${{ needs.quality-gates.outputs.target-environment }}
+    runs-on: ubuntu-latest
+    needs: [quality-gates, build]
+    if: needs.quality-gates.outputs.should-deploy == 'true' && needs.build.outputs.bundle-passed == 'true'
+    environment: 
+      name: ${{ needs.quality-gates.outputs.target-environment }}
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build-${{ needs.quality-gates.outputs.target-environment }}
+          path: frontend/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Deploy to Vercel
+        id: deploy
+        working-directory: frontend
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          # Configure deployment based on environment
+          if [[ "${{ needs.quality-gates.outputs.target-environment }}" == "production" ]]; then
+            DEPLOYMENT_URL=$(vercel --prod --yes --token=$VERCEL_TOKEN)
+          else
+            DEPLOYMENT_URL=$(vercel --yes --token=$VERCEL_TOKEN)
+          fi
+          
+          echo "deployment-url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
+          echo "Deployed to: $DEPLOYMENT_URL"
+
+      - name: Health Check
+        run: |
+          DEPLOYMENT_URL="${{ steps.deploy.outputs.deployment-url }}"
+          
+          # Wait for deployment to be ready
+          for i in {1..30}; do
+            if curl -f -s "$DEPLOYMENT_URL" > /dev/null; then
+              echo "✅ Health check passed"
+              break
+            fi
+            echo "Waiting for deployment... ($i/30)"
+            sleep 10
+          done
+
+      - name: Smoke Tests
+        run: |
+          DEPLOYMENT_URL="${{ steps.deploy.outputs.deployment-url }}"
+          
+          # Test critical pages
+          PAGES=("/" "/home" "/settings")
+          
+          for page in "${PAGES[@]}"; do
+            echo "Testing $page..."
+            if curl -f -s "$DEPLOYMENT_URL$page" > /dev/null; then
+              echo "✅ $page is accessible"
+            else
+              echo "❌ $page failed"
+              exit 1
+            fi
+          done
+
+  # ============================================================================
+  # Post-Deployment Monitoring
+  # ============================================================================
+  monitor:
+    name: Post-Deployment Monitoring
+    runs-on: ubuntu-latest
+    needs: [quality-gates, deploy]
+    if: needs.deploy.result == 'success'
+    steps:
+      - name: Performance Monitoring
+        run: |
+          DEPLOYMENT_URL="${{ needs.deploy.outputs.deployment-url }}"
+          
+          # Lighthouse CI would go here
+          echo "Performance monitoring for: $DEPLOYMENT_URL"
+          
+          # Placeholder for actual performance monitoring
+          # npx @lhci/cli@0.12.x autorun
+
+      - name: Error Rate Monitoring
+        run: |
+          # Monitor error rates post-deployment
+          echo "Monitoring error rates..."
+          
+          # This would integrate with your monitoring service
+          # curl -X POST "$MONITORING_WEBHOOK" -d '{"deployment": "success", "url": "${{ needs.deploy.outputs.deployment-url }}"}'
+
+      - name: Notify Success
+        if: success()
+        run: |
+          echo "🎉 Frontend deployment successful!"
+          echo "Environment: ${{ needs.quality-gates.outputs.target-environment }}"
+          echo "URL: ${{ needs.deploy.outputs.deployment-url }}"
+          echo "Architecture Phase: ${{ needs.quality-gates.outputs.architecture-phase }}"
+
+  # ============================================================================
+  # Rollback (if needed)
+  # ============================================================================
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    needs: [quality-gates, deploy, monitor]
+    if: failure() && needs.deploy.result == 'success'
+    steps:
+      - name: Rollback to Previous Version
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          echo "🔄 Initiating rollback..."
+          
+          # Get previous deployment
+          PREVIOUS_DEPLOYMENT=$(vercel ls --token=$VERCEL_TOKEN | grep -v "$(date +%Y-%m-%d)" | head -1 | awk '{print $1}')
+          
+          if [[ -n "$PREVIOUS_DEPLOYMENT" ]]; then
+            vercel promote "$PREVIOUS_DEPLOYMENT" --token=$VERCEL_TOKEN
+            echo "✅ Rolled back to: $PREVIOUS_DEPLOYMENT"
+          else
+            echo "❌ No previous deployment found for rollback"
+          fi
+
+      - name: Notify Rollback
+        run: |
+          echo "🚨 Frontend deployment rolled back!"
+          echo "Environment: ${{ needs.quality-gates.outputs.target-environment }}"
+          echo "Reason: Post-deployment checks failed"

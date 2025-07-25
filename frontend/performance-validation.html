@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Optimization Validation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .metric:last-child {
+            border-bottom: none;
+        }
+        .metric-name {
+            font-weight: 500;
+        }
+        .metric-value {
+            font-family: 'Courier New', monospace;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: #f8f9fa;
+        }
+        .status-good { background: #d4edda; color: #155724; }
+        .status-warning { background: #fff3cd; color: #856404; }
+        .status-error { background: #f8d7da; color: #721c24; }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .test-button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #20c997);
+            transition: width 0.3s ease;
+        }
+        .recommendations {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        .recommendations h4 {
+            margin-top: 0;
+            color: #0066cc;
+        }
+        .recommendations ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .recommendations li {
+            margin-bottom: 5px;
+        }
+        .summary-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .summary-score {
+            font-size: 3em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Performance Optimization Validation</h1>
+            <p>Comprehensive testing of bundle size and loading performance optimizations</p>
+            <div class="summary-card">
+                <div>Overall Performance Score</div>
+                <div class="summary-score" id="overallScore">--</div>
+                <div id="scoreDescription">Click "Run All Tests" to begin validation</div>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 20px;">
+            <button class="test-button" onclick="runAllTests()">🧪 Run All Tests</button>
+            <button class="test-button" onclick="runBundleAnalysis()">📦 Bundle Analysis</button>
+            <button class="test-button" onclick="runPerformanceTests()">⚡ Performance Tests</button>
+            <button class="test-button" onclick="runOptimizationTests()">🔧 Optimization Tests</button>
+            <button class="test-button" onclick="clearResults()">🗑️ Clear Results</button>
+        </div>
+
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressBar" style="width: 0%"></div>
+        </div>
+
+        <!-- Bundle Size Analysis -->
+        <div class="test-section">
+            <h3>📦 Bundle Size Analysis</h3>
+            <div id="bundleResults">
+                <div class="metric">
+                    <span class="metric-name">Status</span>
+                    <span class="metric-value">Ready to test</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Core Web Vitals -->
+        <div class="test-section">
+            <h3>⚡ Core Web Vitals</h3>
+            <div id="webVitalsResults">
+                <div class="metric">
+                    <span class="metric-name">Status</span>
+                    <span class="metric-value">Ready to test</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Optimization Features -->
+        <div class="test-section">
+            <h3>🔧 Optimization Features</h3>
+            <div id="optimizationResults">
+                <div class="metric">
+                    <span class="metric-name">Status</span>
+                    <span class="metric-value">Ready to test</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resource Loading -->
+        <div class="test-section">
+            <h3>📡 Resource Loading Performance</h3>
+            <div id="resourceResults">
+                <div class="metric">
+                    <span class="metric-name">Status</span>
+                    <span class="metric-value">Ready to test</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recommendations -->
+        <div class="recommendations" id="recommendations" style="display: none;">
+            <h4>💡 Optimization Recommendations</h4>
+            <ul id="recommendationsList"></ul>
+        </div>
+    </div>
+
+    <script>
+        // Performance Validation Test Suite
+        class PerformanceValidator {
+            constructor() {
+                this.results = {
+                    bundleSize: {},
+                    webVitals: {},
+                    optimizations: {},
+                    resources: {}
+                };
+                this.recommendations = [];
+                this.totalTests = 0;
+                this.completedTests = 0;
+            }
+
+            // Update progress bar
+            updateProgress() {
+                const progress = (this.completedTests / this.totalTests) * 100;
+                document.getElementById('progressBar').style.width = `${progress}%`;
+            }
+
+            // Bundle Size Analysis
+            async analyzeBundleSize() {
+                console.log('🔍 Analyzing bundle size...');
+                const results = {};
+
+                try {
+                    // Get all loaded resources
+                    const resources = performance.getEntriesByType('resource');
+                    let totalJSSize = 0;
+                    let totalCSSSize = 0;
+                    let totalImageSize = 0;
+                    let jsFiles = 0;
+                    let cssFiles = 0;
+                    let imageFiles = 0;
+
+                    resources.forEach(resource => {
+                        const size = resource.transferSize || resource.encodedBodySize || 0;
+                        const url = resource.name;
+
+                        if (url.includes('.js')) {
+                            totalJSSize += size;
+                            jsFiles++;
+                        } else if (url.includes('.css')) {
+                            totalCSSSize += size;
+                            cssFiles++;
+                        } else if (url.match(/\.(jpg|jpeg|png|gif|webp|avif|svg)$/i)) {
+                            totalImageSize += size;
+                            imageFiles++;
+                        }
+                    });
+
+                    const totalSize = totalJSSize + totalCSSSize + totalImageSize;
+
+                    results.totalSize = totalSize;
+                    results.jsSize = totalJSSize;
+                    results.cssSize = totalCSSSize;
+                    results.imageSize = totalImageSize;
+                    results.jsFiles = jsFiles;
+                    results.cssFiles = cssFiles;
+                    results.imageFiles = imageFiles;
+
+                    // Check against targets
+                    results.sizeTarget = 150 * 1024; // 150KB target
+                    results.meetsTarget = totalSize <= results.sizeTarget;
+
+                    if (!results.meetsTarget) {
+                        this.recommendations.push(`Bundle size (${this.formatBytes(totalSize)}) exceeds target (${this.formatBytes(results.sizeTarget)}). Consider more aggressive code splitting.`);
+                    }
+
+                    if (totalJSSize > 100 * 1024) {
+                        this.recommendations.push(`JavaScript bundle (${this.formatBytes(totalJSSize)}) is large. Implement dynamic imports for non-critical code.`);
+                    }
+
+                } catch (error) {
+                    console.error('Bundle analysis failed:', error);
+                    results.error = error.message;
+                }
+
+                this.results.bundleSize = results;
+                this.completedTests++;
+                this.updateProgress();
+                this.displayBundleResults();
+            }
+
+            // Core Web Vitals Analysis
+            async analyzeWebVitals() {
+                console.log('⚡ Analyzing Core Web Vitals...');
+                const results = {};
+
+                try {
+                    // Get navigation timing
+                    const navigation = performance.getEntriesByType('navigation')[0];
+                    if (navigation) {
+                        results.fcp = navigation.responseEnd - navigation.fetchStart;
+                        results.lcp = navigation.loadEventEnd - navigation.fetchStart;
+                        results.tti = navigation.domInteractive - navigation.fetchStart;
+                        results.loadTime = navigation.loadEventEnd - navigation.fetchStart;
+                    }
+
+                    // Check against targets
+                    results.fcpTarget = 1200; // 1.2s
+                    results.lcpTarget = 2000; // 2.0s
+                    results.ttiTarget = 2500; // 2.5s
+
+                    results.fcpMeetsTarget = !results.fcp || results.fcp <= results.fcpTarget;
+                    results.lcpMeetsTarget = !results.lcp || results.lcp <= results.lcpTarget;
+                    results.ttiMeetsTarget = !results.tti || results.tti <= results.ttiTarget;
+
+                    if (!results.fcpMeetsTarget) {
+                        this.recommendations.push(`First Contentful Paint (${results.fcp}ms) exceeds target (${results.fcpTarget}ms). Optimize critical rendering path.`);
+                    }
+
+                    if (!results.lcpMeetsTarget) {
+                        this.recommendations.push(`Largest Contentful Paint (${results.lcp}ms) exceeds target (${results.lcpTarget}ms). Optimize largest elements and images.`);
+                    }
+
+                    if (!results.ttiMeetsTarget) {
+                        this.recommendations.push(`Time to Interactive (${results.tti}ms) exceeds target (${results.ttiTarget}ms). Reduce JavaScript execution time.`);
+                    }
+
+                } catch (error) {
+                    console.error('Web Vitals analysis failed:', error);
+                    results.error = error.message;
+                }
+
+                this.results.webVitals = results;
+                this.completedTests++;
+                this.updateProgress();
+                this.displayWebVitalsResults();
+            }
+
+            // Optimization Features Analysis
+            async analyzeOptimizations() {
+                console.log('🔧 Analyzing optimization features...');
+                const results = {};
+
+                try {
+                    // Check for service worker
+                    results.serviceWorker = 'serviceWorker' in navigator;
+                    
+                    // Check for compression
+                    const resources = performance.getEntriesByType('resource');
+                    let compressedResources = 0;
+                    let totalResources = 0;
+
+                    resources.forEach(resource => {
+                        if (resource.name.includes('.js') || resource.name.includes('.css')) {
+                            totalResources++;
+                            const compressionRatio = (resource.encodedBodySize || 0) / (resource.decodedBodySize || 1);
+                            if (compressionRatio < 0.9) {
+                                compressedResources++;
+                            }
+                        }
+                    });
+
+                    results.compressionRatio = totalResources > 0 ? compressedResources / totalResources : 0;
+                    results.compressionEffective = results.compressionRatio > 0.7;
+
+                    // Check for modern image formats
+                    const images = document.querySelectorAll('img');
+                    let modernFormatImages = 0;
+                    images.forEach(img => {
+                        if (img.src.includes('.webp') || img.src.includes('.avif')) {
+                            modernFormatImages++;
+                        }
+                    });
+                    results.modernImageFormats = images.length > 0 ? modernFormatImages / images.length : 0;
+
+                    // Check for lazy loading
+                    let lazyImages = 0;
+                    images.forEach(img => {
+                        if (img.loading === 'lazy' || img.dataset.src) {
+                            lazyImages++;
+                        }
+                    });
+                    results.lazyLoading = images.length > 0 ? lazyImages / images.length : 0;
+
+                    // Check for preloading
+                    const preloadLinks = document.querySelectorAll('link[rel="preload"], link[rel="prefetch"]');
+                    results.preloadingEnabled = preloadLinks.length > 0;
+
+                    // Generate recommendations
+                    if (!results.serviceWorker) {
+                        this.recommendations.push('Service Worker not detected. Enable for better caching and offline support.');
+                    }
+
+                    if (!results.compressionEffective) {
+                        this.recommendations.push(`Only ${Math.round(results.compressionRatio * 100)}% of resources are compressed. Enable Gzip/Brotli compression.`);
+                    }
+
+                    if (results.modernImageFormats < 0.5) {
+                        this.recommendations.push(`Only ${Math.round(results.modernImageFormats * 100)}% of images use modern formats. Convert to WebP/AVIF.`);
+                    }
+
+                    if (results.lazyLoading < 0.5) {
+                        this.recommendations.push(`Only ${Math.round(results.lazyLoading * 100)}% of images use lazy loading. Implement for better performance.`);
+                    }
+
+                } catch (error) {
+                    console.error('Optimization analysis failed:', error);
+                    results.error = error.message;
+                }
+
+                this.results.optimizations = results;
+                this.completedTests++;
+                this.updateProgress();
+                this.displayOptimizationResults();
+            }
+
+            // Resource Loading Analysis
+            async analyzeResourceLoading() {
+                console.log('📡 Analyzing resource loading...');
+                const results = {};
+
+                try {
+                    const resources = performance.getEntriesByType('resource');
+                    let totalLoadTime = 0;
+                    let slowResources = 0;
+                    let cachedResources = 0;
+                    let totalResources = resources.length;
+
+                    resources.forEach(resource => {
+                        const loadTime = resource.responseEnd - resource.startTime;
+                        totalLoadTime += loadTime;
+
+                        if (loadTime > 1000) { // > 1s is slow
+                            slowResources++;
+                        }
+
+                        if (resource.transferSize === 0 && resource.decodedBodySize > 0) {
+                            cachedResources++;
+                        }
+                    });
+
+                    results.averageLoadTime = totalResources > 0 ? totalLoadTime / totalResources : 0;
+                    results.slowResourceRatio = totalResources > 0 ? slowResources / totalResources : 0;
+                    results.cacheHitRatio = totalResources > 0 ? cachedResources / totalResources : 0;
+                    results.totalResources = totalResources;
+
+                    // Check performance
+                    results.loadTimeGood = results.averageLoadTime < 500; // < 500ms average
+                    results.cacheEffective = results.cacheHitRatio > 0.3; // > 30% cached
+                    results.fewSlowResources = results.slowResourceRatio < 0.1; // < 10% slow
+
+                    if (!results.loadTimeGood) {
+                        this.recommendations.push(`Average resource load time (${Math.round(results.averageLoadTime)}ms) is high. Optimize server response times.`);
+                    }
+
+                    if (!results.cacheEffective) {
+                        this.recommendations.push(`Cache hit ratio (${Math.round(results.cacheHitRatio * 100)}%) is low. Improve caching strategy.`);
+                    }
+
+                    if (!results.fewSlowResources) {
+                        this.recommendations.push(`${Math.round(results.slowResourceRatio * 100)}% of resources load slowly. Optimize large assets.`);
+                    }
+
+                } catch (error) {
+                    console.error('Resource loading analysis failed:', error);
+                    results.error = error.message;
+                }
+
+                this.results.resources = results;
+                this.completedTests++;
+                this.updateProgress();
+                this.displayResourceResults();
+            }
+
+            // Display Results
+            displayBundleResults() {
+                const container = document.getElementById('bundleResults');
+                const results = this.results.bundleSize;
+
+                if (results.error) {
+                    container.innerHTML = `<div class="metric"><span class="metric-name">Error</span><span class="metric-value status-error">${results.error}</span></div>`;
+                    return;
+                }
+
+                container.innerHTML = `
+                    <div class="metric">
+                        <span class="metric-name">Total Bundle Size</span>
+                        <span class="metric-value ${results.meetsTarget ? 'status-good' : 'status-error'}">${this.formatBytes(results.totalSize)} / ${this.formatBytes(results.sizeTarget)}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-name">JavaScript Size</span>
+                        <span class="metric-value">${this.formatBytes(results.jsSize)} (${results.jsFiles} files)</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-name">CSS Size</span>
+                        <span class="metric-value">${this.formatBytes(results.cssSize)} (${results.cssFiles} files)</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-name">Image Size</span>
+                        <span class="metric-value">${this.formatBytes(results.imageSize)} (${results.imageFiles} files)</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-name">Target Met</span>
+                        <span class="metric-value ${results.meetsTarget ? 'status-good' : 'status-error'}">${results.meetsTarget ? '✅ Yes' : '❌ No'}</span>
+                    </div>
+                `;
+            }
+
+            displayWebVitalsResults() {
+                const container = document.getElementById('webVitalsResults');
+                const results = this.results.webVitals;
+
+                if (results.error) {
+                    container.innerHTML = `<div class="metric"><span class="metric-name">Error</span><span class="metric-value status-error">${results.error}</span></div>`;
+                    return;
+                }
+
+                container.innerHTML = `
+                    <div class="metric">
+                        <span class="metric-name">First Contentful Paint (FCP)</span>
+                        <span class="metric-value ${results.fcpMeetsTarget ? 'status-good' : 'status-error'}">${results.fcp ? Math.round(results.fcp) + 'ms' : 'N/A'} / ${results.fcpTarget}ms</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-name">Largest Contentful Paint (LCP)</span>
+                        <span class="metric-value ${results.lcpMeetsTarget ? 'status-good' : 'status-error'}">${results.lcp ? Math.round(results.lcp) + 'ms' : 'N/A'} / ${results.lcpTarget}ms</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-name">Time to Interactive (TTI)</span>
+                        <span class="metric-value ${results.ttiMeetsTarget ? 'status-good' : 'status-error'}">${results.tti ? Math.round(results.tti) + 'ms' : 'N/A'} / ${results.ttiTarget}ms</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-name">Total Load Time</span>
+                        <span class="metric-value">${results.loadTime ? Math.round(results.loadTime) + 'ms' : 'N/A'}</span>
+                    </div>
+                `;
+            }
+
+            displayOptimizationResults() {
+                const container = document.getElementById('optimizationResults');
+                const results = this.results.optimizations;
+
+                if (results.error) {
+                    container.innerHTML = `<div class="metric"><span class="metric-name">Error</span><span class="metric-value status-error">${results.error}</span></div>`;
+                    return;
+                }
+
+                container.innerHTML = `
+                    <div class="metric">
+                        <span class="metric-name">Service Worker</span>
+                        <span class="metric-value ${results.serviceWorker ? 'status-good' : 'status-error'}">${results.serviceWorker ? '✅ Enabled' : '❌ Disabled'}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-name">Compression Ratio</span>
+                        <span class="metric-value ${results.compressionEffective ? 'status-good' : 'status-warning'}">${Math.round(results.compressionRatio * 100)}%</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-name">Modern Image Formats</span>
+                        <span class="metric-value ${results.modernImageFormats > 0.5 ? 'status-good' : 'status-warning'}">${Math.round(results.modernImageFormats * 100)}%</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-name">Lazy Loading</span>
+                        <span class="metric-value ${results.lazyLoading > 0.5 ? 'status-good' : 'status-warning'}">${Math.round(results.lazyLoading * 100)}%</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-name">Resource Preloading</span>
+                        <span class="metric-value ${results.preloadingEnabled ? 'status-good' : 'status-warning'}">${results.preloadingEnabled ? '✅ Enabled' : '⚠️ Limited'}</span>
+                    </div>
+                `;
+            }
+
+            displayResourceResults() {
+                const container = document.getElementById('resourceResults');
+                const results = this.results.resources;
+
+                if (results.error) {
+                    container.innerHTML = `<div class="metric"><span class="metric-name">Error</span><span class="metric-value status-error">${results.error}</span></div>`;
+                    return;
+                }
+
+                container.innerHTML = `
+                    <div class="metric">
+                        <span class="metric-name">Average Load Time</span>
+                        <span class="metric-value ${results.loadTimeGood ? 'status-good' : 'status-warning'}">${Math.round(results.averageLoadTime)}ms</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-name">Cache Hit Ratio</span>
+                        <span class="metric-value ${results.cacheEffective ? 'status-good' : 'status-warning'}">${Math.round(results.cacheHitRatio * 100)}%</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-name">Slow Resources</span>
+                        <span class="metric-value ${results.fewSlowResources ? 'status-good' : 'status-warning'}">${Math.round(results.slowResourceRatio * 100)}%</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-name">Total Resources</span>
+                        <span class="metric-value">${results.totalResources}</span>
+                    </div>
+                `;
+            }
+
+            // Calculate overall score
+            calculateOverallScore() {
+                let score = 100;
+                let factors = 0;
+
+                // Bundle size factor (30%)
+                if (this.results.bundleSize.meetsTarget !== undefined) {
+                    factors++;
+                    if (!this.results.bundleSize.meetsTarget) score -= 30;
+                }
+
+                // Web vitals factor (40%)
+                if (this.results.webVitals.fcpMeetsTarget !== undefined) {
+                    factors++;
+                    let vitalsPenalty = 0;
+                    if (!this.results.webVitals.fcpMeetsTarget) vitalsPenalty += 15;
+                    if (!this.results.webVitals.lcpMeetsTarget) vitalsPenalty += 15;
+                    if (!this.results.webVitals.ttiMeetsTarget) vitalsPenalty += 10;
+                    score -= vitalsPenalty;
+                }
+
+                // Optimization features factor (20%)
+                if (this.results.optimizations.serviceWorker !== undefined) {
+                    factors++;
+                    let optPenalty = 0;
+                    if (!this.results.optimizations.serviceWorker) optPenalty += 5;
+                    if (!this.results.optimizations.compressionEffective) optPenalty += 8;
+                    if (this.results.optimizations.modernImageFormats < 0.5) optPenalty += 4;
+                    if (this.results.optimizations.lazyLoading < 0.5) optPenalty += 3;
+                    score -= optPenalty;
+                }
+
+                // Resource loading factor (10%)
+                if (this.results.resources.loadTimeGood !== undefined) {
+                    factors++;
+                    let resourcePenalty = 0;
+                    if (!this.results.resources.loadTimeGood) resourcePenalty += 5;
+                    if (!this.results.resources.cacheEffective) resourcePenalty += 3;
+                    if (!this.results.resources.fewSlowResources) resourcePenalty += 2;
+                    score -= resourcePenalty;
+                }
+
+                return Math.max(0, Math.round(score));
+            }
+
+            // Update overall score display
+            updateOverallScore() {
+                const score = this.calculateOverallScore();
+                const scoreElement = document.getElementById('overallScore');
+                const descriptionElement = document.getElementById('scoreDescription');
+
+                scoreElement.textContent = score;
+
+                if (score >= 90) {
+                    descriptionElement.textContent = '🎉 Excellent Performance!';
+                    scoreElement.style.color = '#28a745';
+                } else if (score >= 75) {
+                    descriptionElement.textContent = '👍 Good Performance';
+                    scoreElement.style.color = '#ffc107';
+                } else if (score >= 60) {
+                    descriptionElement.textContent = '⚠️ Needs Improvement';
+                    scoreElement.style.color = '#fd7e14';
+                } else {
+                    descriptionElement.textContent = '❌ Poor Performance';
+                    scoreElement.style.color = '#dc3545';
+                }
+            }
+
+            // Display recommendations
+            displayRecommendations() {
+                const container = document.getElementById('recommendations');
+                const list = document.getElementById('recommendationsList');
+
+                if (this.recommendations.length === 0) {
+                    container.style.display = 'none';
+                    return;
+                }
+
+                list.innerHTML = this.recommendations.map(rec => `<li>${rec}</li>`).join('');
+                container.style.display = 'block';
+            }
+
+            // Utility function to format bytes
+            formatBytes(bytes) {
+                if (bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+            }
+
+            // Run all tests
+            async runAllTests() {
+                this.totalTests = 4;
+                this.completedTests = 0;
+                this.recommendations = [];
+                this.updateProgress();
+
+                await this.analyzeBundleSize();
+                await this.analyzeWebVitals();
+                await this.analyzeOptimizations();
+                await this.analyzeResourceLoading();
+
+                this.updateOverallScore();
+                this.displayRecommendations();
+
+                console.log('✅ All performance tests completed!');
+                console.log('Results:', this.results);
+                console.log('Recommendations:', this.recommendations);
+            }
+        }
+
+        // Global validator instance
+        const validator = new PerformanceValidator();
+
+        // Test functions
+        async function runAllTests() {
+            const buttons = document.querySelectorAll('.test-button');
+            buttons.forEach(btn => btn.disabled = true);
+
+            try {
+                await validator.runAllTests();
+            } finally {
+                buttons.forEach(btn => btn.disabled = false);
+            }
+        }
+
+        async function runBundleAnalysis() {
+            await validator.analyzeBundleSize();
+            validator.updateOverallScore();
+        }
+
+        async function runPerformanceTests() {
+            await validator.analyzeWebVitals();
+            validator.updateOverallScore();
+        }
+
+        async function runOptimizationTests() {
+            await validator.analyzeOptimizations();
+            await validator.analyzeResourceLoading();
+            validator.updateOverallScore();
+            validator.displayRecommendations();
+        }
+
+        function clearResults() {
+            validator.results = {
+                bundleSize: {},
+                webVitals: {},
+                optimizations: {},
+                resources: {}
+            };
+            validator.recommendations = [];
+            validator.completedTests = 0;
+            validator.updateProgress();
+
+            // Reset displays
+            document.getElementById('bundleResults').innerHTML = '<div class="metric"><span class="metric-name">Status</span><span class="metric-value">Ready to test</span></div>';
+            document.getElementById('webVitalsResults').innerHTML = '<div class="metric"><span class="metric-name">Status</span><span class="metric-value">Ready to test</span></div>';
+            document.getElementById('optimizationResults').innerHTML = '<div class="metric"><span class="metric-name">Status</span><span class="metric-value">Ready to test</span></div>';
+            document.getElementById('resourceResults').innerHTML = '<div class="metric"><span class="metric-name">Status</span><span class="metric-value">Ready to test</span></div>';
+            document.getElementById('recommendations').style.display = 'none';
+            document.getElementById('overallScore').textContent = '--';
+            document.getElementById('scoreDescription').textContent = 'Click "Run All Tests" to begin validation';
+        }
+
+        // Auto-run tests when page loads (after a delay)
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                console.log('🚀 Performance Validation Tool Ready');
+                console.log('Click "Run All Tests" to begin comprehensive performance analysis');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

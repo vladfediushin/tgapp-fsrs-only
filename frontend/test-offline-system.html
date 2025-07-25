@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline Queue System Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        
+        .status-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .control-group {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .control-group h3 {
+            margin-top: 0;
+            color: #495057;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #495057;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background-color 0.2s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .btn-primary { background: #007bff; color: white; }
+        .btn-primary:hover { background: #0056b3; }
+        
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #1e7e34; }
+        
+        .btn-info { background: #17a2b8; color: white; }
+        .btn-info:hover { background: #117a8b; }
+        
+        .btn-warning { background: #ffc107; color: #212529; }
+        .btn-warning:hover { background: #e0a800; }
+        
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #c82333; }
+        
+        .log-panel {
+            background: #212529;
+            color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+        
+        .log-entry.info { color: #17a2b8; }
+        .log-entry.success { color: #28a745; }
+        .log-entry.warning { color: #ffc107; }
+        .log-entry.error { color: #dc3545; }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-online { background: #28a745; }
+        .status-offline { background: #dc3545; }
+        .status-poor { background: #ffc107; }
+        
+        .queue-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        
+        .instructions {
+            background: #e7f3ff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 30px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .instructions h3 {
+            margin-top: 0;
+            color: #0056b3;
+        }
+        
+        .instructions ol {
+            margin-bottom: 0;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔄 Offline Queue System Test</h1>
+            <p>Interactive demonstration of the comprehensive offline queue system</p>
+        </div>
+
+        <!-- System Status Panel -->
+        <div class="status-panel">
+            <h3>📊 System Status</h3>
+            <div id="systemStatus">
+                <div>
+                    <span class="status-indicator status-offline"></span>
+                    <strong>Status:</strong> <span id="systemStatusText">Initializing...</span>
+                </div>
+                <div class="queue-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="queueSize">0</div>
+                        <div class="stat-label">Queue Size</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="networkStatus">OFFLINE</div>
+                        <div class="stat-label">Network</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="healthStatus">UNKNOWN</div>
+                        <div class="stat-label">Health</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="lastSync">Never</div>
+                        <div class="stat-label">Last Sync</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Panels -->
+        <div class="controls">
+            <!-- FSRS Operations -->
+            <div class="control-group">
+                <h3>📝 FSRS Operations</h3>
+                <div class="form-group">
+                    <label>Question ID:</label>
+                    <input type="text" id="questionId" value="test-question-1">
+                </div>
+                <div class="form-group">
+                    <label>Rating:</label>
+                    <select id="rating">
+                        <option value="1">1 - Again</option>
+                        <option value="2">2 - Hard</option>
+                        <option value="3" selected>3 - Good</option>
+                        <option value="4">4 - Easy</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="isCorrect" checked> Answer Correct
+                    </label>
+                </div>
+                <button class="btn btn-primary" onclick="submitAnswer()">Submit Answer</button>
+                <button class="btn btn-success" onclick="submitFSRSRating()">Submit FSRS Rating</button>
+            </div>
+
+            <!-- User Settings -->
+            <div class="control-group">
+                <h3>⚙️ User Settings</h3>
+                <div class="form-group">
+                    <label>Theme:</label>
+                    <select id="theme">
+                        <option value="light">Light</option>
+                        <option value="dark" selected>Dark</option>
+                        <option value="auto">Auto</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Language:</label>
+                    <select id="language">
+                        <option value="en" selected>English</option>
+                        <option value="es">Spanish</option>
+                        <option value="fr">French</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="notifications" checked> Enable Notifications
+                    </label>
+                </div>
+                <button class="btn btn-success" onclick="updateUserSettings()">Update Settings</button>
+            </div>
+
+            <!-- Queue Management -->
+            <div class="control-group">
+                <h3>🔄 Queue Management</h3>
+                <button class="btn btn-info" onclick="forceSync()">Force Sync</button>
+                <button class="btn btn-warning" onclick="retryAll()">Retry All</button>
+                <button class="btn btn-danger" onclick="clearQueue()">Clear Queue</button>
+                <button class="btn btn-info" onclick="exportQueue()">Export Queue</button>
+                <br><br>
+                <button class="btn btn-warning" onclick="simulateOffline()">Simulate Offline (10s)</button>
+                <button class="btn btn-info" onclick="createTestOperations()">Create Test Ops</button>
+            </div>
+
+            <!-- System Control -->
+            <div class="control-group">
+                <h3>🛠️ System Control</h3>
+                <button class="btn btn-success" onclick="initializeSystem()">Initialize System</button>
+                <button class="btn btn-danger" onclick="shutdownSystem()">Shutdown System</button>
+                <button class="btn btn-info" onclick="getSystemHealth()">Check Health</button>
+                <button class="btn btn-info" onclick="enableDebugMode()">Enable Debug</button>
+                <br><br>
+                <button class="btn btn-info" onclick="refreshStatus()">Refresh Status</button>
+                <button class="btn btn-warning" onclick="clearLogs()">Clear Logs</button>
+            </div>
+        </div>
+
+        <!-- Log Panel -->
+        <div class="log-panel" id="logPanel">
+            <div class="log-entry info">🚀 Offline Queue System Test Interface Ready</div>
+            <div class="log-entry info">📋 Click "Initialize System" to start the offline queue system</div>
+            <div class="log-entry info">🔧 Use browser DevTools Network tab to simulate real offline conditions</div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="instructions">
+            <h3>📋 How to Test Offline Functionality</h3>
+            <ol>
+                <li><strong>Initialize:</strong> Click "Initialize System" to start the offline queue system</li>
+                <li><strong>Test Online:</strong> Submit some operations while online to see immediate processing</li>
+                <li><strong>Go Offline:</strong> Use "Simulate Offline" or browser DevTools Network tab to disable network</li>
+                <li><strong>Queue Operations:</strong> Submit operations while offline - they'll be queued automatically</li>
+                <li><strong>Monitor Queue:</strong> Watch the queue size increase and status change</li>
+                <li><strong>Go Online:</strong> Re-enable network and watch automatic synchronization</li>
+                <li><strong>Debug:</strong> Enable debug mode and use browser console commands for advanced testing</li>
+            </ol>
+            
+            <h4>🔧 Debug Console Commands (when debug mode enabled):</h4>
+            <ul>
+                <li><code>window.offlineDebug.getQueueState()</code> - View current queue state</li>
+                <li><code>window.offlineDebug.getHealth()</code> - Check system health</li>
+                <li><code>window.offlineDebug.exportQueue()</code> - Export queue data</li>
+                <li><code>window.offlineDebug.simulateOffline(5000)</code> - Simulate offline for 5 seconds</li>
+                <li><code>window.offlineDebug.forceSync()</code> - Force immediate synchronization</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Mock system state for demonstration
+        let systemInitialized = false;
+        let mockQueue = [];
+        let mockNetworkStatus = 'OFFLINE';
+        let mockSystemHealth = 'UNKNOWN';
+        let mockLastSync = null;
+        let logCounter = 0;
+
+        // Logging function
+        function log(message, type = 'info') {
+            const logPanel = document.getElementById('logPanel');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            logPanel.appendChild(logEntry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+            
+            // Keep only last 100 log entries
+            if (logPanel.children.length > 100) {
+                logPanel.removeChild(logPanel.firstChild);
+            }
+        }
+
+        // Update status display
+        function updateStatus() {
+            document.getElementById('systemStatusText').textContent = systemInitialized ? 'Initialized' : 'Not Initialized';
+            document.getElementById('queueSize').textContent = mockQueue.length;
+            document.getElementById('networkStatus').textContent = mockNetworkStatus;
+            document.getElementById('healthStatus').textContent = mockSystemHealth;
+            document.getElementById('lastSync').textContent = mockLastSync ? new Date(mockLastSync).toLocaleTimeString() : 'Never';
+            
+            // Update status indicator
+            const indicator = document.querySelector('.status-indicator');
+            indicator.className = `status-indicator status-${mockNetworkStatus.toLowerCase()}`;
+        }
+
+        // Mock system initialization
+        function initializeSystem() {
+            log('🚀 Initializing offline system...', 'info');
+            
+            setTimeout(() => {
+                systemInitialized = true;
+                mockNetworkStatus = 'ONLINE';
+                mockSystemHealth = 'HEALTHY';
+                updateStatus();
+                log('✅ Offline system initialized successfully', 'success');
+                log('📡 Network status: ONLINE', 'info');
+                log('💚 System health: HEALTHY', 'success');
+            }, 1000);
+        }
+
+        // Mock system shutdown
+        function shutdownSystem() {
+            log('🛑 Shutting down offline system...', 'warning');
+            systemInitialized = false;
+            mockQueue = [];
+            mockNetworkStatus = 'OFFLINE';
+            mockSystemHealth = 'UNKNOWN';
+            mockLastSync = null;
+            updateStatus();
+            log('✅ System shut down successfully', 'info');
+        }
+
+        // Mock operations
+        function submitAnswer() {
+            if (!systemInitialized) {
+                log('❌ System not initialized', 'error');
+                return;
+            }
+
+            const questionId = document.getElementById('questionId').value;
+            const rating = document.getElementById('rating').value;
+            const isCorrect = document.getElementById('isCorrect').checked;
+
+            const operation = {
+                id: `op_${Date.now()}`,
+                type: 'SUBMIT_ANSWER',
+                payload: { questionId, rating, isCorrect },
+                timestamp: Date.now()
+            };
+
+            if (mockNetworkStatus === 'ONLINE') {
+                log(`📝 Submitting answer for question ${questionId} (rating: ${rating})`, 'info');
+                setTimeout(() => {
+                    mockLastSync = Date.now();
+                    updateStatus();
+                    log('✅ Answer submitted successfully', 'success');
+                }, 500);
+            } else {
+                mockQueue.push(operation);
+                updateStatus();
+                log(`📝 Answer queued for question ${questionId} (offline)`, 'warning');
+            }
+        }
+
+        function submitFSRSRating() {
+            if (!systemInitialized) {
+                log('❌ System not initialized', 'error');
+                return;
+            }
+
+            const questionId = document.getElementById('questionId').value;
+            const rating = document.getElementById('rating').value;
+            const isCorrect = document.getElementById('isCorrect').checked;
+
+            const operation = {
+                id: `fsrs_${Date.now()}`,
+                type: 'FSRS_RATING',
+                payload: { questionId, rating, isCorrect },
+                timestamp: Date.now()
+            };
+
+            if (mockNetworkStatus === 'ONLINE') {
+                log(`🎯 Submitting FSRS rating for question ${questionId}`, 'info');
+                setTimeout(() => {
+                    mockLastSync = Date.now();
+                    updateStatus();
+                    log('✅ FSRS rating submitted successfully', 'success');
+                }, 500);
+            } else {
+                mockQueue.push(operation);
+                updateStatus();
+                log(`🎯 FSRS rating queued for question ${questionId} (offline)`, 'warning');
+            }
+        }
+
+        function updateUserSettings() {
+            if (!systemInitialized) {
+                log('❌ System not initialized', 'error');
+                return;
+            }
+
+            const theme = document.getElementById('theme').value;
+            const language = document.getElementById('language').value;
+            const notifications = document.getElementById('notifications').checked;
+
+            const operation = {
+                id: `settings_${Date.now()}`,
+                type: 'UPDATE_USER_SETTINGS',
+                payload: { theme, language, notifications },
+                timestamp: Date.now()
+            };
+
+            if (mockNetworkStatus === 'ONLINE') {
+                log(`⚙️ Updating user settings (theme: ${theme}, lang: ${language})`, 'info');
+                setTimeout(() => {
+                    mockLastSync = Date.now();
+                    updateStatus();
+                    log('✅ User settings updated successfully', 'success');
+                }, 500);
+            } else {
+                mockQueue.push(operation);
+                updateStatus();
+                log(`⚙️ User settings update queued (offline)`, 'warning');
+            }
+        }
+
+        function forceSync() {
+            if (!systemInitialized) {
+                log('❌ System not initialized', 'error');
+                return;
+            }
+
+            if (mockQueue.length === 0) {
+                log('ℹ️ No operations to sync', 'info');
+                return;
+            }
+
+            if (mockNetworkStatus === 'OFFLINE') {
+                log('❌ Cannot sync while offline', 'error');
+                return;
+            }
+
+            log(`🔄 Force syncing ${mockQueue.length} operations...`, 'info');
+            
+            setTimeout(() => {
+                const syncedCount = mockQueue.length;
+                mockQueue = [];
+                mockLastSync = Date.now();
+                updateStatus();
+                log(`✅ Successfully synced ${syncedCount} operations`, 'success');
+            }, 1000);
+        }
+
+        function retryAll() {
+            if (!systemInitialized) {
+                log('❌ System not initialized', 'error');
+                return;
+            }
+
+            log('🔄 Retrying all failed operations...', 'info');
+            setTimeout(() => {
+                log('✅ All operations retried', 'success');
+            }, 500);
+        }
+
+        function clearQueue() {
+            if (!systemInitialized) {
+                log('❌ System not initialized', 'error');
+                return;
+            }
+
+            const clearedCount = mockQueue.length;
+            mockQueue = [];
+            updateStatus();
+            log(`🗑️ Cleared ${clearedCount} operations from queue`, 'warning');
+        }
+
+        function exportQueue() {
+            if (!systemInitialized) {
+                log('❌ System not initialized', 'error');
+                return;
+            }
+
+            const exportData = {
+                timestamp: Date.now(),
+                queue: mockQueue,
+                networkStatus: mockNetworkStatus,
+                systemHealth: mockSystemHealth
+            };
+
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `queue-export-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            log('📁 Queue data exported successfully', 'success');
+        }
+
+        function simulateOffline() {
+            if (!systemInitialized) {
+                log('❌ System not initialized', 'error');
+                return;
+            }
+
+            log('📡 Simulating network failure for 10 seconds...', 'warning');
+            mockNetworkStatus = 'OFFLINE';
+            updateStatus();
+
+            setTimeout(() => {
+                mockNetworkStatus = 'ONLINE';
+                updateStatus();
+                log('📡 Network simulation ended - back online', 'success');
+                
+                // Auto-sync queued operations
+                if (mockQueue.length > 0) {
+                    setTimeout(() => forceSync(), 1000);
+                }
+            }, 10000);
+        }
+
+        function createTestOperations() {
+            if (!systemInitialized) {
+                log('❌ System not initialized', 'error');
+                return;
+            }
+
+            const testOps = [];
+            for (let i = 0; i < 5; i++) {
+                testOps.push({
+                    id: `test_${Date.now()}_${i}`,
+                    type: 'CUSTOM_API_CALL',
+                    payload: { method: 'GET', url: `/test/${i}`, test: true },
+                    timestamp: Date.now()
+                });
+            }
+
+            mockQueue.push(...testOps);
+            updateStatus();
+            log(`🧪 Created ${testOps.length} test operations`, 'info');
+        }
+
+        function getSystemHealth() {
+            if (!systemInitialized) {
+                log('❌ System not initialized', 'error');
+                return;
+            }
+
+            // Mock health assessment
+            let health = 'HEALTHY';
+            let issues = [];
+
+            if (mockQueue.length > 10) {
+                health = 'WARNING';
+                issues.push('Large queue size');
+            }
+
+            if (mockQueue.length > 50) {
+                health = 'CRITICAL';
+                issues.push('Very large queue size');
+            }
+
+            if (mockNetworkStatus === 'OFFLINE') {
+                if (health === 'HEALTHY') health = 'WARNING';
+                issues.push('Device offline');
+            }
+
+            mockSystemHealth = health;
+            updateStatus();
+
+            log(`📊 System health: ${health}`, health === 'HEALTHY' ? 'success' : health === 'WARNING' ? 'warning' : 'error');
+            if (issues.length > 0) {
+                log(`⚠️ Issues: ${issues.join(', ')}`, 'warning');
+            }
+        }
+
+        function enableDebugMode() {
+            log('🐛 Debug mode enabled', 'info');
+            log('💡 Use browser console with window.offlineDebug commands', 'info');
+            
+            // Mock debug object
+            window.offlineDebug = {
+                getQueueState: () => {
+                    console.log('Queue State:', mockQueue);
+                    return mockQueue;
+                },
+                getHealth: () => {
+                    const health = { status: mockSystemHealth, queueSize: mockQueue.length, networkStatus: mockNetworkStatus };
+                    console.log('System Health:', health);
+                    return health;
+                },
+                exportQueue: () => {
+                    console.log('Queue Export:', mockQueue);
+                    return mockQueue;
+                },
+                simulateOffline: (duration = 5000) => {
+                    console.log(`Simulating offline for ${duration}ms`);
+                    simulateOffline();
+                },
+                forceSync: () => {
+                    console.log('Forcing sync...');
+                    forceSync();
+                }
+            };
+        }
+
+        function refreshStatus() {
+            updateStatus();
+            log('🔄 Status refreshed', 'info');
+        }
+
+        function clearLogs() {
+            document.getElementById('logPanel').innerHTML = '';
+            log('🧹 Logs cleared', 'info');
+        }
+
+        // Initialize display
+        updateStatus();
+
+        // Auto-refresh status every 5 seconds
+        setInterval(updateStatus, 5000);
+    </script>
+</body>
+</html>

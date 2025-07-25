@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings Integration Test - TG App FSRS</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8fafc;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .test-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .test-section {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .test-section h3 {
+            margin-top: 0;
+            color: #2563eb;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 10px;
+        }
+        
+        .setting-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f8fafc;
+            border-radius: 6px;
+        }
+        
+        .setting-label {
+            font-weight: 500;
+            margin-bottom: 5px;
+            display: block;
+        }
+        
+        .setting-control {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .slider {
+            width: 100%;
+            margin: 10px 0;
+        }
+        
+        .toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .toggle input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .preview-section {
+            grid-column: 1 / -1;
+            background: #1f2937;
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+        }
+        
+        .preview-content {
+            background: #374151;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-active { background-color: #10b981; }
+        .status-inactive { background-color: #6b7280; }
+        
+        .test-results {
+            background: #ecfdf5;
+            border: 1px solid #10b981;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .test-results h4 {
+            color: #065f46;
+            margin-top: 0;
+        }
+        
+        .test-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            border-bottom: 1px solid #d1fae5;
+        }
+        
+        .test-item:last-child {
+            border-bottom: none;
+        }
+        
+        .test-pass { color: #065f46; font-weight: 500; }
+        .test-fail { color: #dc2626; font-weight: 500; }
+        
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            margin: 5px;
+        }
+        
+        button:hover {
+            background: #1d4ed8;
+        }
+        
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        
+        .demo-question {
+            background: white;
+            color: #1f2937;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        
+        .demo-options {
+            display: grid;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        
+        .demo-option {
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .demo-option:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        
+        .demo-option.selected {
+            border-color: #3b82f6;
+            background: #dbeafe;
+        }
+        
+        .demo-option.correct {
+            border-color: #10b981;
+            background: #d1fae5;
+        }
+        
+        .demo-option.incorrect {
+            border-color: #ef4444;
+            background: #fee2e2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 Settings Integration Test</h1>
+            <p>Test the complete FSRS Settings integration with real-time effects</p>
+            <div id="connectionStatus">
+                <span class="status-indicator status-inactive"></span>
+                <span>Settings Integration: Loading...</span>
+            </div>
+        </div>
+        
+        <div class="test-grid">
+            <!-- FSRS Settings -->
+            <div class="test-section">
+                <h3>🧠 FSRS Algorithm Settings</h3>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Target Retention Rate: <span id="retentionValue">85%</span></label>
+                    <input type="range" class="slider" id="retentionSlider" 
+                           min="70" max="98" value="85" 
+                           oninput="updateRetention(this.value)">
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Maximum Interval: <span id="intervalValue">180 days</span></label>
+                    <input type="range" class="slider" id="intervalSlider" 
+                           min="30" max="365" value="180" 
+                           oninput="updateInterval(this.value)">
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Easy Bonus: <span id="bonusValue">1.3x</span></label>
+                    <input type="range" class="slider" id="bonusSlider" 
+                           min="1.0" max="2.0" step="0.1" value="1.3" 
+                           oninput="updateBonus(this.value)">
+                </div>
+                
+                <div class="setting-item">
+                    <div class="toggle">
+                        <input type="checkbox" id="fuzzToggle" checked onchange="updateFuzz(this.checked)">
+                        <label class="setting-label">Enable Interval Fuzz</label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Learning Preferences -->
+            <div class="test-section">
+                <h3>📚 Learning Preferences</h3>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Daily Goal: <span id="goalValue">20 questions</span></label>
+                    <input type="range" class="slider" id="goalSlider" 
+                           min="5" max="100" value="20" 
+                           oninput="updateGoal(this.value)">
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Session Length: <span id="sessionValue">20 questions</span></label>
+                    <input type="range" class="slider" id="sessionSlider" 
+                           min="5" max="50" value="20" 
+                           oninput="updateSessionLength(this.value)">
+                </div>
+                
+                <div class="setting-item">
+                    <div class="toggle">
+                        <input type="checkbox" id="soundToggle" checked onchange="updateSound(this.checked)">
+                        <label class="setting-label">Sound Effects</label>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <div class="toggle">
+                        <input type="checkbox" id="keyboardToggle" checked onchange="updateKeyboard(this.checked)">
+                        <label class="setting-label">Keyboard Shortcuts</label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- UI Preferences -->
+            <div class="test-section">
+                <h3>🎨 UI Preferences</h3>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Theme</label>
+                    <select class="setting-control" id="themeSelect" onchange="updateTheme(this.value)">
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                        <option value="auto" selected>Auto</option>
+                    </select>
+                </div>
+                
+                <div class="setting-item">
+                    <label class="setting-label">Font Size</label>
+                    <select class="setting-control" id="fontSelect" onchange="updateFontSize(this.value)">
+                        <option value="small">Small</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="large">Large</option>
+                    </select>
+                </div>
+                
+                <div class="setting-item">
+                    <div class="toggle">
+                        <input type="checkbox" id="animationsToggle" checked onchange="updateAnimations(this.checked)">
+                        <label class="setting-label">Animations</label>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <div class="toggle">
+                        <input type="checkbox" id="progressToggle" checked onchange="updateProgress(this.checked)">
+                        <label class="setting-label">Show Progress</label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Test Controls -->
+            <div class="test-section">
+                <h3>🧪 Test Controls</h3>
+                
+                <button onclick="testAudioFeedback()">Test Success Sound</button>
+                <button onclick="testErrorSound()">Test Error Sound</button>
+                <button onclick="testNotificationSound()">Test Notification</button>
+                <br><br>
+                <button onclick="simulateCorrectAnswer()">Simulate Correct Answer</button>
+                <button onclick="simulateIncorrectAnswer()">Simulate Incorrect Answer</button>
+                <br><br>
+                <button onclick="resetToDefaults()">Reset to Defaults</button>
+                <button onclick="runFullTest()">Run Full Integration Test</button>
+            </div>
+        </div>
+        
+        <!-- Live Preview Section -->
+        <div class="preview-section">
+            <h3>🎯 Live Preview - Learning Session</h3>
+            <p>This section demonstrates how settings affect the actual learning experience:</p>
+            
+            <div class="preview-content">
+                <div class="demo-question" id="demoQuestion">
+                    <h4>Sample FSRS Question</h4>
+                    <p>What is the main benefit of spaced repetition learning?</p>
+                    
+                    <div class="demo-options">
+                        <div class="demo-option" onclick="selectOption(this, false)">
+                            A) It makes learning faster
+                        </div>
+                        <div class="demo-option" onclick="selectOption(this, false)">
+                            B) It reduces study time
+                        </div>
+                        <div class="demo-option" onclick="selectOption(this, true)">
+                            C) It improves long-term retention
+                        </div>
+                        <div class="demo-option" onclick="selectOption(this, false)">
+                            D) It eliminates the need for review
+                        </div>
+                    </div>
+                    
+                    <div id="demoProgress" style="margin-top: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>Daily Progress: <span id="currentProgress">0</span>/<span id="dailyGoalDisplay">20</span></span>
+                            <span id="progressPercentage">0%</span>
+                        </div>
+                        <div style="width: 100%; height: 8px; background: #374151; border-radius: 4px; margin-top: 5px;">
+                            <div id="progressBar" style="height: 100%; background: #10b981; border-radius: 4px; width: 0%; transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Test Results -->
+        <div class="test-results" id="testResults" style="display: none;">
+            <h4>🧪 Integration Test Results</h4>
+            <div id="testResultsList"></div>
+        </div>
+    </div>
+
+    <script>
+        // Mock settings state
+        let currentSettings = {
+            fsrs: {
+                requestRetention: 0.85,
+                maximumInterval: 180,
+                easyBonus: 1.3,
+                hardInterval: 1.2,
+                enableFuzz: true
+            },
+            learning: {
+                dailyGoal: 20,
+                sessionLength: 20,
+                soundEffects: true,
+                keyboardShortcuts: true
+            },
+            ui: {
+                theme: 'auto',
+                fontSize: 'medium',
+                animations: true,
+                showProgress: true
+            }
+        };
+        
+        let currentProgress = 0;
+        let selectedOption = null;
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            updateConnectionStatus(true);
+            applyCurrentSettings();
+        });
+        
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            const indicator = statusEl.querySelector('.status-indicator');
+            const text = statusEl.querySelector('span:last-child');
+            
+            if (connected) {
+                indicator.className = 'status-indicator status-active';
+                text.textContent = 'Settings Integration: Active';
+            } else {
+                indicator.className = 'status-indicator status-inactive';
+                text.textContent = 'Settings Integration: Disconnected';
+            }
+        }
+        
+        // FSRS Settings Updates
+        function updateRetention(value) {
+            currentSettings.fsrs.requestRetention = value / 100;
+            document.getElementById('retentionValue').textContent = value + '%';
+            logSettingChange('FSRS Retention', value + '%');
+        }
+        
+        function updateInterval(value) {
+            currentSettings.fsrs.maximumInterval = parseInt(value);
+            document.getElementById('intervalValue').textContent = value + ' days';
+            logSettingChange('FSRS Max Interval', value + ' days');
+        }
+        
+        function updateBonus(value) {
+            currentSettings.fsrs.easyBonus = parseFloat(value);
+            document.getElementById('bonusValue').textContent = value + 'x';
+            logSettingChange('FSRS Easy Bonus', value + 'x');
+        }
+        
+        function updateFuzz(enabled) {
+            currentSettings.fsrs.enableFuzz = enabled;
+            logSettingChange('FSRS Interval Fuzz', enabled ? 'Enabled' : 'Disabled');
+        }
+        
+        // Learning Preferences Updates
+        function updateGoal(value) {
+            currentSettings.learning.dailyGoal = parseInt(value);
+            document.getElementById('goalValue').textContent = value + ' questions';
+            document.getElementById('dailyGoalDisplay').textContent = value;
+            updateProgressDisplay();
+            logSettingChange('Daily Goal', value + ' questions');
+        }
+        
+        function updateSessionLength(value) {
+            currentSettings.learning.sessionLength = parseInt(value);
+            document.getElementById('sessionValue').textContent = value + ' questions';
+            logSettingChange('Session Length', value + ' questions');
+        }
+        
+        function updateSound(enabled) {
+            currentSettings.learning.soundEffects = enabled;
+            logSettingChange('Sound Effects', enabled ? 'Enabled' : 'Disabled');
+        }
+        
+        function updateKeyboard(enabled) {
+            currentSettings.learning.keyboardShortcuts = enabled;
+            logSettingChange('Keyboard Shortcuts', enabled ? 'Enabled' : 'Disabled');
+        }
+        
+        // UI Preferences Updates
+        function updateTheme(theme) {
+            currentSettings.ui.theme = theme;
+            applyTheme(theme);
+            logSettingChange('Theme', theme);
+        }
+        
+        function updateFontSize(size) {
+            currentSettings.ui.fontSize = size;
+            applyFontSize(size);
+            logSettingChange('Font Size', size);
+        }
+        
+        function updateAnimations(enabled) {
+            currentSettings.ui.animations = enabled;
+            logSettingChange('Animations', enabled ? 'Enabled' : 'Disabled');
+        }
+        
+        function updateProgress(enabled) {
+            currentSettings.ui.showProgress = enabled;
+            document.getElementById('demoProgress').style.display = enabled ? 'block' : 'none';
+            logSettingChange('Progress Display', enabled ? 'Enabled' : 'Disabled');
+        }
+        
+        // Apply settings functions
+        function applyTheme(theme) {
+            const body = document.body;
+            if (theme === 'dark') {
+                body.style.backgroundColor = '#1f2937';
+                body.style.color = '#f9fafb';
+            } else if (theme === 'light') {
+                body.style.backgroundColor = '#f8fafc';
+                body.style.color = '#1f2937';
+            } else {
+                // Auto - use system preference
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                applyTheme(prefersDark ? 'dark' : 'light');
+                return;
+            }
+        }
+        
+        function applyFontSize(size) {
+            const sizeMap = { small: '14px', medium: '16px', large: '18px' };
+            document.body.style.fontSize = sizeMap[size];
+        }
+        
+        function applyCurrentSettings() {
+            // Apply all current settings
+            applyTheme(currentSettings.ui.theme);
+            applyFontSize(currentSettings.ui.fontSize);
+            updateProgressDisplay();
+        }
+        
+        function updateProgressDisplay() {
+            const percentage = Math.min((currentProgress / currentSettings.learning.dailyGoal) * 100, 100);
+            document.getElementById('currentProgress').textContent = currentProgress;
+            document.getElementById('progressPercentage').textContent = Math.round(percentage) + '%';
+            document.getElementById('progressBar').style.width = percentage + '%';
+        }
+        
+        // Test functions
+        function testAudioFeedback() {
+            if (currentSettings.learning.soundEffects) {
+                console.log('🔊 Playing success sound...');
+                showNotification('Success sound played!', 'success');
+            } else {
+                showNotification('Sound effects are disabled', 'info');
+            }
+        }
+        
+        function testErrorSound() {
+            if (currentSettings.learning.soundEffects) {
+                console.log('🔊 Playing error sound...');
+                showNotification('Error sound played!', 'error');
+            } else {
+                showNotification('Sound effects are disabled', 'info');
+            }
+        }
+        
+        function testNotificationSound() {
+            console.log('🔊 Playing notification sound...');
+            showNotification('Notification sound played!', 'info');
+        }
+        
+        function simulateCorrectAnswer() {
+            currentProgress++;
+            updateProgressDisplay();
+            testAudioFeedback();
+            
+            if (currentProgress >= currentSettings.learning.dailyGoal) {
+                showNotification('🎉 Daily goal reached!', 'success');
+                testNotificationSound();
+            }
+        }
+        
+        function simulateIncorrectAnswer() {
+            testErrorSound();
+            showNotification('Incorrect answer - try again!', 'error');
+        }
+        
+        function selectOption(element, isCorrect) {
+            // Clear previous selections
+            document.querySelectorAll('.demo-option').forEach(opt => {
+                opt.classList.remove('selected', 'correct', 'incorrect');
+            });
+            
+            // Mark selection
+            element.classList.add('selected');
+            selectedOption = { element, isCorrect };
+            
+            // Show result after a delay
+            setTimeout(() => {
+                if (isCorrect) {
+                    element.classList.add('correct');
+                    simulateCorrectAnswer();
+                } else {
+                    element.classList.add('incorrect');
+                    simulateIncorrectAnswer();
+                }
+            }, 500);
+        }
+        
+        function resetToDefaults() {
+            // Reset all controls to default values
+            document.getElementById('retentionSlider').value = 85;
+            document.getElementById('intervalSlider').value = 180;
+            document.getElementById('bonusSlider').value = 1.3;
+            document.getElementById('fuzzToggle').checked = true;
+            document.getElementById('goalSlider').value = 20;
+            document.getElementById('sessionSlider').value = 20;
+            document.getElementById('soundToggle').checked = true;
+            document.getElementById('keyboardToggle').checked = true;
+            document.getElementById('themeSelect').value = 'auto';
+            document.getElementById('fontSelect').value = 'medium';
+            document.getElementById('animationsToggle').checked = true;
+            document.getElementById('progressToggle').checked = true;
+            
+            // Reset settings
+            currentSettings = {
+                fsrs: {
+                    requestRetention: 0.85,
+                    maximumInterval: 180,
+                    easyBonus: 1.3,
+                    hardInterval: 1.2,
+                    enableFuzz: true
+                },
+                learning: {
+                    dailyGoal: 20,
+                    sessionLength: 20,
+                    soundEffects: true,
+                    keyboardShortcuts: true
+                },
+                ui: {
+                    theme: 'auto',
+                    fontSize: 'medium',
+                    animations: true,
+                    showProgress: true
+                }
+            };
+            
+            currentProgress = 0;
+            applyCurrentSettings();
+            showNotification('Settings reset to defaults', 'info');
+        }
+        
+        function runFullTest() {
+            const results = [];
+            
+            // Test FSRS settings
+            results.push({
+                name: 'FSRS Retention Rate',
+                status: currentSettings.fsrs.requestRetention >= 0.7 && currentSettings.fsrs.requestRetention <= 0.98,
+                value: (currentSettings.fsrs.requestRetention * 100) + '%'
+            });
+            
+            results.push({
+                name: 'FSRS Maximum Interval',
+                status: currentSettings.fsrs.maximumInterval >= 30 && currentSettings.fsrs.maximumInterval <= 365,
+                value: currentSettings.fsrs.maximumInterval + ' days'
+            });
+            
+            // Test learning preferences
+            results.push({
+                name: 'Daily Goal',
+                status: currentSettings.learning.dailyGoal >= 5 && currentSettings.learning.dailyGoal <= 100,
+                value: currentSettings.learning.dailyGoal + ' questions'
+            });
+            
+            results.push({
+                name: 'Session Length',
+                status: currentSettings.learning.sessionLength >= 5 && currentSettings.learning.sessionLength <= 50,
+                value: currentSettings.learning.sessionLength + ' questions'
+            });
+            
+            // Test UI preferences
+            results.push({
+                name: 'Theme Setting',
+                status: ['light', 'dark', 'auto'].includes(currentSettings.ui.theme),
+                value: currentSettings.ui.theme
+            });
+            
+            results.push({
+                name: 'Font Size Setting',
+                status: ['small', 'medium', 'large'].includes(currentSettings.ui.fontSize),
+                value: currentSettings.ui.fontSize
+            });
+            
+            // Test integration features
+            results.push({
+                name: 'Audio Feedback',
+                status: typeof currentSettings.learning.soundEffects === 'boolean',
+                value: currentSettings.learning.soundEffects ? 'Enabled' : 'Disabled'
+            });
+            
+            results.push({
+                name: 'Progress Display',
+                status: typeof currentSettings.ui.showProgress === 'boolean',
+                value: currentSettings.ui.showProgress ? 'Enabled' : 'Disabled'
+            });
+            
+            displayTestResults(results);
+        }
+        
+        function displayTestResults(results) {
+            const resultsEl = document.getElementById('testResults');
+            const listEl = document.getElementById('testResultsList');
+            
+            listEl.innerHTML = '';
+            
+            results.forEach(result => {
+                const item = document.createElement('div');
+                item.className = 'test-item';
+                item.innerHTML = `
+                    <span>${result.name}: ${result.value}</span>
+                    <span class="${result.status ? 'test-pass' : 'test-fail'}">
+                        ${result.status ? '✅ PASS' : '❌ FAIL'}
+                    </span>
+                `;
+                listEl.appendChild(item);
+            });
+            
+            resultsEl.style.display = 'block';
+            
+            const passCount = results.filter(r => r.status).length;
+            showNotification(`Test completed: ${passCount}/${results.length} tests passed`, 
+                           passCount === results.length ? 'success' : 'error');
+        }
+        
+        function showNotification(message, type) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                border-radius: 6px;
+                color: white;
+                font-weight: 500;
+                z-index: 1000;
+                transition: all 0.3s ease;
+                ${type === 'success' ? 'background: #10b981;' : 
+                  type === 'error' ? 'background: #ef4444;' : 
+                  'background: #3b82f6;'}
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transform = 'translateX(100%)';
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+        
+        function logSettingChange(setting, value) {
+            console.log(`⚙️ Setting changed: ${setting} = ${value}`);
+            showNotification(`${setting} updated to ${value}`, 'info');
+        }
+        
+        // Keyboard shortcuts (if enabled)
+        document.addEventListener('keydown', function(e) {
+            if (!currentSettings.learning.keyboardShortcuts) return;
+            
+            if (e.key >= '1' && e.key <= '4') {
+                const optionIndex = parseInt(e.key) - 1;
+                const options = document.querySelectorAll('.demo-option');
+                if (options[optionIndex]) {
+                    const isCorrect = optionIndex === 2; // Option C is correct
+                    selectOption(options[optionIndex], isCorrect);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
