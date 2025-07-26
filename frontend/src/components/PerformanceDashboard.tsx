@@ -3,8 +3,8 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { usePerformanceMetrics, usePerformanceBudgets } from '../utils/core/performance'
-import { getResourcePreloader } from '../utils/optimization/loading'
-import { getCacheStats } from '../utils/optimization/loading'
+import { getResourcePreloader } from '../utils/resourcePreloader'
+import { getCacheStats } from '../utils/dynamicImports'
 import { shouldEnableFeature, isProductionEnvironment } from '../config/monitoring.production'
 
 // Conditionally import development-only features

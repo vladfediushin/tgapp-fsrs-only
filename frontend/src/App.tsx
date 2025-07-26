@@ -3,7 +3,7 @@ import { Routes, Route, useLocation } from 'react-router-dom'
 import { SuspenseFallback } from './components/PageLoader'
 import { GlobalErrorBoundary } from './components/ErrorBoundary/GlobalErrorBoundary'
 import { createLazyComponent } from './utils/optimization/lazyComponents'
-import { useRoutePreloader } from './utils/optimization/loading'
+import { useRoutePreloader } from './utils/resourcePreloader'
 import { usePerformanceMetrics } from './utils/core/performance'
 
 // Lazy load performance dashboard to avoid impacting initial bundle
