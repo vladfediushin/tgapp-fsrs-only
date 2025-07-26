@@ -111,51 +111,44 @@ jobs:
       - name: Generate Test Matrix
         id: test-matrix
         run: |
-          # Create test matrix based on configuration
-          MATRIX='{"include":['
-          
-          # Always include unit tests
-          MATRIX+='{
-            "name": "Frontend Unit Tests",
-            "type": "frontend-unit",
-            "working-directory": "frontend",
-            "test-command": "npm run test -- --coverage --reporter=verbose"
-          },'
-          
-          MATRIX+='{
-            "name": "Backend Unit Tests", 
-            "type": "backend-unit",
-            "working-directory": "backend",
-            "test-command": "pytest tests/ -v --cov=app --cov-report=xml -k \"not integration and not e2e\""
-          },'
-          
-          # Include integration tests
-          MATRIX+='{
-            "name": "Frontend Integration Tests",
-            "type": "frontend-integration", 
-            "working-directory": "frontend",
-            "test-command": "npm run test -- --testPathPattern=integration"
-          },'
-          
-          MATRIX+='{
-            "name": "Backend Integration Tests",
-            "type": "backend-integration",
-            "working-directory": "backend", 
-            "test-command": "pytest tests/ -v -k integration"
-          },'
-          
-          # FSRS-specific tests
-          MATRIX+='{
-            "name": "FSRS Algorithm Tests",
-            "type": "fsrs-tests",
-            "working-directory": "backend",
-            "test-command": "python test_fsrs_only.py && pytest tests/ -v -k fsrs"
-          }'
-          
-          MATRIX+=']}'
-          
-          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
-          echo "Generated test matrix: $MATRIX"
+          cat << 'EOF' >> $GITHUB_OUTPUT
+          matrix<<MATRIX_EOF
+          {
+            "include": [
+              {
+                "name": "Frontend Unit Tests",
+                "type": "frontend-unit",
+                "working-directory": "frontend",
+                "test-command": "npm run test -- --coverage --reporter=verbose"
+              },
+              {
+                "name": "Backend Unit Tests",
+                "type": "backend-unit",
+                "working-directory": "backend",
+                "test-command": "pytest tests/ -v --cov=app --cov-report=xml -k \"not integration and not e2e\""
+              },
+              {
+                "name": "Frontend Integration Tests",
+                "type": "frontend-integration",
+                "working-directory": "frontend",
+                "test-command": "npm run test -- --testPathPattern=integration"
+              },
+              {
+                "name": "Backend Integration Tests",
+                "type": "backend-integration",
+                "working-directory": "backend",
+                "test-command": "pytest tests/ -v -k integration"
+              },
+              {
+                "name": "FSRS Algorithm Tests",
+                "type": "fsrs-tests",
+                "working-directory": "backend",
+                "test-command": "python test_fsrs_only.py && pytest tests/ -v -k fsrs"
+              }
+            ]
+          }
+          MATRIX_EOF
+          EOF
 
   # ============================================================================
   # Unit and Integration Tests
