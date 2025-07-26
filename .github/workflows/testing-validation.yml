@@ -40,7 +40,7 @@ on:
         type: boolean
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
   PYTHON_VERSION: '3.11'
   POSTGRES_VERSION: '15'
   REDIS_VERSION: '7'

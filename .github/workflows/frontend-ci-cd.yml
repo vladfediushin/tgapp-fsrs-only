@@ -40,7 +40,7 @@ on:
           - '4'
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
   CACHE_KEY_PREFIX: 'frontend-v1'
 
 jobs:

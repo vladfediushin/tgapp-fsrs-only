@@ -24,7 +24,7 @@ on:
         default: '10'
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
   # Bundle size targets based on architecture improvement plan
   TARGET_REDUCTION: '35' # 35% reduction target
   MAX_BUNDLE_SIZE: '500000' # 500KB max (current ~2MB target ~1.4MB)
