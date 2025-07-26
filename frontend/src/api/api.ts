@@ -1,18 +1,26 @@
 import axios, { AxiosResponse } from 'axios'
 
 // Debug environment variables
-console.log('Environment check:');
+console.log('=== API Configuration Debug ===');
 console.log('VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
 console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
+console.log('VITE_ENVIRONMENT:', import.meta.env.VITE_ENVIRONMENT);
 console.log('PROD mode:', import.meta.env.PROD);
 console.log('DEV mode:', import.meta.env.DEV);
+console.log('Current origin:', window.location.origin);
+console.log('Current hostname:', window.location.hostname);
 
 // API URL с fallback для продакшена
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
-                    import.meta.env.VITE_API_URL || 
-                    (import.meta.env.PROD 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ||
+                    import.meta.env.VITE_API_URL ||
+                    (import.meta.env.PROD
                       ? 'https://tgapp-fsrs-backend.onrender.com'
                       : 'http://localhost:8000');
+
+console.log('=== Final API Configuration ===');
+console.log('API Base URL:', API_BASE_URL);
+console.log('Timeout:', 10000);
+console.log('================================');
 
 // создаём экземпляр axios с базовым URL
 export const api = axios.create({
@@ -23,18 +31,65 @@ export const api = axios.create({
   },
 })
 
-console.log('API Base URL:', API_BASE_URL); // Для отладки
+// Request interceptor for debugging
+api.interceptors.request.use(
+  (config) => {
+    console.log('=== API Request ===');
+    console.log('URL:', config.url);
+    console.log('Method:', config.method?.toUpperCase());
+    console.log('Base URL:', config.baseURL);
+    console.log('Full URL:', `${config.baseURL}${config.url}`);
+    console.log('Headers:', config.headers);
+    if (config.data) {
+      console.log('Request Data:', config.data);
+    }
+    console.log('==================');
+    return config;
+  },
+  (error) => {
+    console.error('Request Error:', error);
+    return Promise.reject(error);
+  }
+);
 
 // Interceptor для обработки ошибок и retry
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('=== API Response ===');
+    console.log('URL:', response.config.url);
+    console.log('Status:', response.status);
+    console.log('Status Text:', response.statusText);
+    console.log('Response Headers:', response.headers);
+    console.log('Response Data:', response.data);
+    console.log('===================');
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
 
+    console.log('=== API Error Debug ===');
+    console.log('Error Code:', error.code);
+    console.log('Error Message:', error.message);
+    console.log('Request URL:', error.config?.url);
+    console.log('Request Method:', error.config?.method);
+    console.log('Base URL:', error.config?.baseURL);
+    console.log('Full URL:', error.config ? `${error.config.baseURL}${error.config.url}` : 'Unknown');
+    
+    if (error.response) {
+      console.log('Response Status:', error.response.status);
+      console.log('Response Headers:', error.response.headers);
+      console.log('Response Data:', error.response.data);
+    } else {
+      console.log('No response received - possible CORS or network issue');
+      console.log('Current origin:', window.location.origin);
+      console.log('Target API:', error.config?.baseURL);
+    }
+    console.log('=====================');
+
     // Retry для network errors или 5xx ошибок
     if (
-      (error.code === 'ECONNABORTED' || 
-       error.code === 'NETWORK_ERROR' || 
+      (error.code === 'ECONNABORTED' ||
+       error.code === 'NETWORK_ERROR' ||
        (error.response && error.response.status >= 500)) &&
       !originalRequest._retry
     ) {
@@ -288,6 +343,101 @@ export const getAnswersByDay = (userId: string, days: number = 7) => {
     params: { days }
   })
 }
+
+// -------------------------
+// Health Check and Connection Testing
+// -------------------------
+
+export interface HealthCheckResponse {
+  status: string;
+  timestamp: string;
+  version?: string;
+  database?: string;
+}
+
+export interface ConnectionTestResult {
+  success: boolean;
+  responseTime: number;
+  error?: string;
+  details?: {
+    url: string;
+    status?: number;
+    statusText?: string;
+  };
+}
+
+/**
+ * Test basic API connectivity with health check endpoint
+ */
+export const testConnection = async (): Promise<ConnectionTestResult> => {
+  const startTime = Date.now();
+  
+  try {
+    console.log('=== Testing Backend Connection ===');
+    console.log('Target URL:', `${API_BASE_URL}/health`);
+    
+    const response = await api.get<HealthCheckResponse>('/health');
+    const responseTime = Date.now() - startTime;
+    
+    console.log('✓ Backend connection successful:', response.data);
+    console.log(`✓ Response time: ${responseTime}ms`);
+    console.log('================================');
+    
+    return {
+      success: true,
+      responseTime,
+      details: {
+        url: `${API_BASE_URL}/health`,
+        status: response.status,
+        statusText: response.statusText
+      }
+    };
+  } catch (error: any) {
+    const responseTime = Date.now() - startTime;
+    
+    console.error('✗ Backend connection failed:', error);
+    console.error(`✗ Failed after: ${responseTime}ms`);
+    console.error('================================');
+    
+    return {
+      success: false,
+      responseTime,
+      error: error.message || 'Unknown error',
+      details: {
+        url: `${API_BASE_URL}/health`,
+        status: error.response?.status,
+        statusText: error.response?.statusText
+      }
+    };
+  }
+};
+
+/**
+ * Test connection with retry mechanism
+ */
+export const testConnectionWithRetry = async (maxRetries: number = 3): Promise<ConnectionTestResult> => {
+  let lastResult: ConnectionTestResult;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    console.log(`=== Connection Test Attempt ${attempt}/${maxRetries} ===`);
+    
+    lastResult = await testConnection();
+    
+    if (lastResult.success) {
+      console.log(`✓ Connection successful on attempt ${attempt}`);
+      return lastResult;
+    }
+    
+    if (attempt < maxRetries) {
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Exponential backoff, max 5s
+      console.log(`✗ Attempt ${attempt} failed, retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  console.error(`✗ All ${maxRetries} connection attempts failed`);
+  return lastResult!;
+};
 
 
 export default api

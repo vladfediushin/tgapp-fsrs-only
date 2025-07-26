@@ -1,16 +1,18 @@
-// src/main.tsx - Simplified with consolidated performance initialization
+// src/main.tsx - Enhanced with debugging and Telegram Web App initialization
 import React, { useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { useSession } from './store/session'
 import { initializePerformanceSystems } from './utils/core/performanceInit'
+import { testConnectionWithRetry } from './api/api'
+import { initializeTelegramWebAppWithFallback } from './utils/telegramWebApp'
 
 // Lazy load i18n to reduce initial bundle size
 // Use optimized dependency loader
 import { loadI18n } from './utils/optimization/dependencyLoaders'
 
-const Root: React.FC = () => {
+const Root = () => {
   const uiLang = useSession(state => state.uiLanguage)
 
   useEffect(() => {
@@ -25,13 +27,39 @@ const Root: React.FC = () => {
     })
   }, [uiLang])
 
-  // Initialize consolidated performance systems
+  // Initialize consolidated performance systems with debugging enhancements
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        console.log('[App] Starting consolidated performance system initialization')
+        console.log('[App] Starting enhanced initialization with debugging...')
         
-        // Single consolidated initialization call
+        // 1. Initialize Telegram Web App first
+        console.log('[App] Step 1: Initializing Telegram Web App...')
+        const telegramResult = initializeTelegramWebAppWithFallback(true)
+        
+        if (telegramResult.success) {
+          console.log('[App] ✓ Telegram Web App initialized successfully')
+          if (telegramResult.user) {
+            console.log(`[App] ✓ User: ${telegramResult.user.first_name} (ID: ${telegramResult.user.id})`)
+          }
+        } else {
+          console.warn('[App] ⚠ Telegram Web App initialization failed:', telegramResult.error)
+          console.log('[App] ⚠ Debug info:', telegramResult.debugInfo)
+        }
+
+        // 2. Test backend connectivity
+        console.log('[App] Step 2: Testing backend connectivity...')
+        const connectionResult = await testConnectionWithRetry(3)
+        
+        if (connectionResult.success) {
+          console.log(`[App] ✓ Backend connection successful (${connectionResult.responseTime}ms)`)
+        } else {
+          console.error('[App] ✗ Backend connection failed:', connectionResult.error)
+          console.error('[App] ✗ Connection details:', connectionResult.details)
+        }
+
+        // 3. Initialize performance systems
+        console.log('[App] Step 3: Initializing performance systems...')
         const result = await initializePerformanceSystems({
           enablePerformanceMonitor: true,
           enableServiceWorker: true,
@@ -59,6 +87,8 @@ const Root: React.FC = () => {
           })
         }
 
+        console.log('[App] ✓ Enhanced initialization complete')
+
       } catch (error) {
         console.error('[App] Critical initialization failure:', error)
       }
@@ -80,11 +110,9 @@ const renderApp = () => {
   const root = ReactDOM.createRoot(rootElement)
   
   root.render(
-    <React.StrictMode>
-      <BrowserRouter>
-        <Root />
-      </BrowserRouter>
-    </React.StrictMode>
+    <BrowserRouter>
+      <Root />
+    </BrowserRouter>
   )
 }
 

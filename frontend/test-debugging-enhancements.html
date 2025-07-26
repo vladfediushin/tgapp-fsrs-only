@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debugging Enhancements Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #1d4ed8;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .success {
+            background: #dcfce7;
+            border: 1px solid #16a34a;
+            color: #15803d;
+        }
+        .error {
+            background: #fef2f2;
+            border: 1px solid #dc2626;
+            color: #dc2626;
+        }
+        .info {
+            background: #eff6ff;
+            border: 1px solid #2563eb;
+            color: #1d4ed8;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Debugging Enhancements Test</h1>
+    <p>This page tests the debugging and validation features we've added to the Telegram Web App.</p>
+
+    <div class="test-section">
+        <h2>🌐 API Connection Test</h2>
+        <p>Test the health check endpoint and connection validation:</p>
+        <button class="test-button" onclick="testApiConnection()">Test API Connection</button>
+        <button class="test-button" onclick="testApiConnectionWithRetry()">Test with Retry</button>
+        <div id="api-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📱 Telegram Web App Initialization</h2>
+        <p>Test Telegram Web App initialization and fallback behavior:</p>
+        <button class="test-button" onclick="testTelegramInit()">Test Telegram Init</button>
+        <button class="test-button" onclick="testTelegramWithFallback()">Test with Fallback</button>
+        <div id="telegram-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Debug Information</h2>
+        <p>Current environment and debug information:</p>
+        <button class="test-button" onclick="showDebugInfo()">Show Debug Info</button>
+        <div id="debug-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Connection Status Component</h2>
+        <p>Test the connection status indicator:</p>
+        <div id="connection-status-container">
+            <!-- Connection status component would be rendered here in React -->
+            <div style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px;">
+                <div style="width: 12px; height: 12px; background: #10b981; border-radius: 50%;"></div>
+                <span style="font-size: 14px; font-weight: 500;">Connection Status (Mock)</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mock API base URL for testing
+        const API_BASE_URL = 'https://tgapp-fsrs-backend.onrender.com';
+
+        async function testApiConnection() {
+            const resultsDiv = document.getElementById('api-results');
+            resultsDiv.innerHTML = '<div class="info">Testing API connection...</div>';
+
+            try {
+                const startTime = Date.now();
+                const response = await fetch(`${API_BASE_URL}/health`);
+                const responseTime = Date.now() - startTime;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultsDiv.innerHTML = `
+                        <div class="success">
+                            ✓ API Connection Successful<br>
+                            Response Time: ${responseTime}ms<br>
+                            Status: ${response.status} ${response.statusText}<br>
+                            Data: ${JSON.stringify(data, null, 2)}
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="error">
+                            ✗ API Connection Failed<br>
+                            Status: ${response.status} ${response.statusText}<br>
+                            Response Time: ${responseTime}ms
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="error">
+                        ✗ API Connection Error<br>
+                        Error: ${error.message}<br>
+                        This could be a CORS issue or network problem
+                    </div>
+                `;
+            }
+        }
+
+        async function testApiConnectionWithRetry() {
+            const resultsDiv = document.getElementById('api-results');
+            resultsDiv.innerHTML = '<div class="info">Testing API connection with retry...</div>';
+
+            let attempts = 0;
+            const maxRetries = 3;
+
+            for (let i = 0; i < maxRetries; i++) {
+                attempts++;
+                try {
+                    const startTime = Date.now();
+                    const response = await fetch(`${API_BASE_URL}/health`);
+                    const responseTime = Date.now() - startTime;
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        resultsDiv.innerHTML = `
+                            <div class="success">
+                                ✓ API Connection Successful (Attempt ${attempts})<br>
+                                Response Time: ${responseTime}ms<br>
+                                Status: ${response.status} ${response.statusText}<br>
+                                Data: ${JSON.stringify(data, null, 2)}
+                            </div>
+                        `;
+                        return;
+                    }
+                } catch (error) {
+                    if (i === maxRetries - 1) {
+                        resultsDiv.innerHTML = `
+                            <div class="error">
+                                ✗ All ${maxRetries} attempts failed<br>
+                                Last Error: ${error.message}
+                            </div>
+                        `;
+                    } else {
+                        resultsDiv.innerHTML = `
+                            <div class="info">
+                                Attempt ${attempts} failed, retrying...<br>
+                                Error: ${error.message}
+                            </div>
+                        `;
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                }
+            }
+        }
+
+        function testTelegramInit() {
+            const resultsDiv = document.getElementById('telegram-results');
+            
+            const debugInfo = {
+                hasWindow: typeof window !== 'undefined',
+                hasTelegram: typeof window !== 'undefined' && !!window.Telegram,
+                hasWebApp: typeof window !== 'undefined' && !!window.Telegram?.WebApp,
+                hasInitData: false,
+                hasUser: false,
+                userAgent: navigator.userAgent,
+                currentUrl: window.location.href
+            };
+
+            if (window.Telegram?.WebApp) {
+                debugInfo.hasInitData = !!window.Telegram.WebApp.initData;
+                debugInfo.hasUser = !!window.Telegram.WebApp.initDataUnsafe?.user;
+            }
+
+            const isInTelegram = debugInfo.hasTelegram && debugInfo.hasWebApp;
+
+            resultsDiv.innerHTML = `
+                <div class="${isInTelegram ? 'success' : 'info'}">
+                    ${isInTelegram ? '✓' : 'ℹ'} Telegram Web App Status<br>
+                    In Telegram: ${isInTelegram ? 'Yes' : 'No'}<br>
+                    Has Window: ${debugInfo.hasWindow}<br>
+                    Has Telegram: ${debugInfo.hasTelegram}<br>
+                    Has WebApp: ${debugInfo.hasWebApp}<br>
+                    Has Init Data: ${debugInfo.hasInitData}<br>
+                    Has User: ${debugInfo.hasUser}<br>
+                    ${isInTelegram ? '' : '<br><strong>Note:</strong> This is normal when testing outside Telegram'}
+                </div>
+            `;
+        }
+
+        function testTelegramWithFallback() {
+            const resultsDiv = document.getElementById('telegram-results');
+            
+            // Simulate the fallback logic
+            const isInTelegram = !!(window.Telegram?.WebApp);
+            
+            if (isInTelegram) {
+                resultsDiv.innerHTML = `
+                    <div class="success">
+                        ✓ Running in Telegram Web App<br>
+                        Using real Telegram data
+                    </div>
+                `;
+            } else {
+                // Mock fallback data
+                const mockUser = {
+                    id: 123456789,
+                    first_name: 'Test',
+                    last_name: 'User',
+                    username: 'testuser',
+                    language_code: 'en'
+                };
+
+                resultsDiv.innerHTML = `
+                    <div class="info">
+                        ℹ Fallback Mode Active<br>
+                        Using mock Telegram data for development:<br>
+                        User: ${mockUser.first_name} ${mockUser.last_name}<br>
+                        ID: ${mockUser.id}<br>
+                        Username: @${mockUser.username}<br>
+                        Language: ${mockUser.language_code}
+                    </div>
+                `;
+            }
+        }
+
+        function showDebugInfo() {
+            const resultsDiv = document.getElementById('debug-results');
+            
+            const debugInfo = {
+                timestamp: new Date().toISOString(),
+                userAgent: navigator.userAgent,
+                url: window.location.href,
+                viewport: {
+                    width: window.innerWidth,
+                    height: window.innerHeight
+                },
+                telegram: {
+                    available: !!(window.Telegram),
+                    webApp: !!(window.Telegram?.WebApp),
+                    version: window.Telegram?.WebApp?.version || 'N/A',
+                    platform: window.Telegram?.WebApp?.platform || 'N/A'
+                },
+                environment: {
+                    isDevelopment: window.location.hostname === 'localhost',
+                    protocol: window.location.protocol,
+                    host: window.location.host
+                }
+            };
+
+            resultsDiv.innerHTML = `
+                <div class="info">
+                    <strong>Debug Information:</strong><br>
+                    <pre>${JSON.stringify(debugInfo, null, 2)}</pre>
+                </div>
+            `;
+        }
+
+        // Auto-run some tests on page load
+        window.addEventListener('load', () => {
+            console.log('🔧 Debugging Enhancements Test Page Loaded');
+            showDebugInfo();
+        });
+    </script>
+</body>
+</html>

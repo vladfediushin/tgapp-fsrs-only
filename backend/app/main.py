@@ -20,7 +20,17 @@ origins = [
     "https://tgapp-fsrs.vercel.app",  # Новый домен для FSRS версии
     "http://localhost:3000",  # Для локальной разработки
     "http://localhost:5173",  # Vite dev server
+    # Additional potential deployment domains
+    "https://tgapp-fsrs-only.vercel.app",
+    "https://tgapp-fsrs-frontend.vercel.app",
+    # Vercel preview deployments (common patterns)
+    "https://tgapp-fsrs-only-git-main-vlads-projects.vercel.app",
+    "https://tgapp-fsrs-only-vlads-projects.vercel.app",
 ]
+
+# Add logging for CORS debugging
+import logging
+logger.info(f"CORS origins configured: {origins}")
 
 app.add_middleware(
     CORSMiddleware,

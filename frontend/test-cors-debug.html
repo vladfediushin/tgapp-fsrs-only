@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CORS Configuration Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>CORS Configuration Debug Test</h1>
+    
+    <div class="test-section info">
+        <h3>Environment Configuration</h3>
+        <div id="env-info"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>API Connection Test</h3>
+        <button onclick="testAPIConnection()">Test API Connection</button>
+        <div id="api-test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>CORS Debug Information</h3>
+        <div id="cors-info"></div>
+    </div>
+
+    <script>
+        // Display environment information
+        function displayEnvInfo() {
+            const envInfo = document.getElementById('env-info');
+            envInfo.innerHTML = `
+                <pre>
+Current Origin: ${window.location.origin}
+Current Hostname: ${window.location.hostname}
+Current Protocol: ${window.location.protocol}
+Current Port: ${window.location.port}
+User Agent: ${navigator.userAgent}
+                </pre>
+            `;
+        }
+
+        // Test API connection
+        async function testAPIConnection() {
+            const resultDiv = document.getElementById('api-test-result');
+            const apiUrl = 'https://tgapp-fsrs-backend.onrender.com';
+            
+            resultDiv.innerHTML = '<p>Testing API connection...</p>';
+            
+            try {
+                console.log('Testing API connection to:', apiUrl);
+                
+                // Test basic connectivity
+                const response = await fetch(`${apiUrl}/`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Response data:', data);
+                    
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ API Connection Successful</h4>
+                            <pre>Status: ${response.status}
+Response: ${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ API Connection Failed</h4>
+                            <pre>Status: ${response.status}
+Status Text: ${response.statusText}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('API connection error:', error);
+                
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ API Connection Error</h4>
+                        <pre>Error: ${error.message}
+Error Type: ${error.name}
+
+This is likely a CORS issue if you see:
+- "Failed to fetch"
+- "Network error"
+- "CORS policy" error
+
+Check browser console for detailed CORS error messages.</pre>
+                    </div>
+                `;
+            }
+        }
+
+        // Display CORS debug info
+        function displayCORSInfo() {
+            const corsInfo = document.getElementById('cors-info');
+            corsInfo.innerHTML = `
+                <pre>
+Expected CORS Origins (Backend Configuration):
+- https://tgapp-frontend.vercel.app
+- https://tgapp-fsrs.vercel.app
+- http://localhost:3000
+- http://localhost:5173
+- https://tgapp-fsrs-only.vercel.app
+- https://tgapp-fsrs-frontend.vercel.app
+- https://tgapp-fsrs-only-git-main-vlads-projects.vercel.app
+- https://tgapp-fsrs-only-vlads-projects.vercel.app
+
+Current Origin: ${window.location.origin}
+Match Status: ${checkOriginMatch()}
+                </pre>
+            `;
+        }
+
+        function checkOriginMatch() {
+            const currentOrigin = window.location.origin;
+            const allowedOrigins = [
+                'https://tgapp-frontend.vercel.app',
+                'https://tgapp-fsrs.vercel.app',
+                'http://localhost:3000',
+                'http://localhost:5173',
+                'https://tgapp-fsrs-only.vercel.app',
+                'https://tgapp-fsrs-frontend.vercel.app',
+                'https://tgapp-fsrs-only-git-main-vlads-projects.vercel.app',
+                'https://tgapp-fsrs-only-vlads-projects.vercel.app'
+            ];
+            
+            return allowedOrigins.includes(currentOrigin) ? '✅ ALLOWED' : '❌ NOT IN CORS LIST';
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            displayEnvInfo();
+            displayCORSInfo();
+        });
+    </script>
+</body>
+</html>
